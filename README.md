@@ -4,7 +4,7 @@ Inspect local TCP/UDP ports, see their processes, monitor changes, and terminate
 
 ## Installation
 
-The current public release is v0.1.0 for Linux/WSL2. Native macOS and Windows installation requires v0.2.0, which is not published yet; those instructions become usable when it is released.
+Native macOS and Windows installation requires v0.2.0 or newer. If the latest release is still v0.1.0, only Linux/WSL2 installation is available.
 
 Install a ready-to-run binary. Go, a compiler, and a source checkout are not required.
 
