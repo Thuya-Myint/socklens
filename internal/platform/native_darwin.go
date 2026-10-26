@@ -134,7 +134,7 @@ func darwinSignal(token [8]uint32, signal syscall.Signal) error {
 	_, _, errno := syscall.Syscall6(syscall.SYS_PROC_INFO, 0x11, 0, uintptr(signal), 0, uintptr(unsafe.Pointer(&token[0])), 32)
 	if errno != 0 {
 		if errno == syscall.ENOSYS || errno == syscall.EINVAL {
-			return fmt.Errorf("%w: macOS identity-checked signaling is unavailable; no signal sent", ErrSafeTerminationUnsupported)
+			return fmt.Errorf("%w: macOS identity-checked signaling is unavailable (%v); no signal sent", ErrSafeTerminationUnsupported, errno)
 		}
 		return errno
 	}
@@ -150,9 +150,6 @@ type darwinTarget struct {
 func OpenTarget(pid int) (Target, error) {
 	id, token, err := darwinIdentity(pid)
 	if err != nil {
-		return nil, err
-	}
-	if err := darwinSignal(token, 0); err != nil {
 		return nil, err
 	}
 	return &darwinTarget{id: id, token: token}, nil

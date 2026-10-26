@@ -97,6 +97,9 @@ func TestNativeProcessTarget(t *testing.T) {
 		t.Fatal("target identity changed")
 	}
 	if err := target.Terminate(); err != nil {
+		if errors.Is(err, ErrSafeTerminationUnsupported) {
+			t.Skip(err)
+		}
 		t.Fatal(err)
 	}
 	select {
