@@ -11,7 +11,7 @@ LDFLAGS = -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.buil
 .PHONY: help build test check install release
 
 help:
-	@printf '%s\n' 'make build    Build bin/socklens with version metadata' 'make test     Run tests with the race detector' 'make check    Check formatting and run go vet' 'make install  Build and install into ~/.local/bin' 'make release  Package Linux amd64/arm64 archives and SHA256SUMS'
+	@printf '%s\n' 'make build    Build bin/socklens with version metadata' 'make test     Run tests with the race detector' 'make check    Check formatting and run go vet' 'make install  Build and install into ~/.local/bin' 'make release  Package Linux/macOS/Windows amd64/arm64 archives and SHA256SUMS'
 
 build:
 	@mkdir -p bin

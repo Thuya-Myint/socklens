@@ -6,7 +6,7 @@
 4. Commit the reviewed source locally; never include bin/ or dist/.
 5. Build with VERSION, COMMIT, and BUILD_DATE set to the intended commit metadata.
 6. Verify SHA256SUMS, archive license/docs, and the extracted amd64 binary.
-   ARM64 is compile-tested unless runtime checks are explicitly recorded.
+   Record runtime results per architecture; compile-only targets must be identified.
 7. Obtain owner approval before pushing the main branch or version tag.
 8. After approval, push main, wait for all CI jobs to pass, then push the reviewed
    annotated tag. Do not force-push a release tag.
@@ -28,3 +28,12 @@ build/runtime dependency and installs bin/socklens from an archive. Keep the
 README's binary installation paths before contributor build instructions.
 The installation CI job tests Homebrew and the shell installer. Never replace
 previously published archives merely to update installation instructions.
+
+## Native release promotion
+
+Native CI must pass before publishing v0.2.0. Review skips for unavailable
+identity-checked macOS signaling; do not describe skipped checks as passed.
+Publish archives plus SHA256SUMS, socklens.rb, and socklens.json. Once those
+URLs exist, promote the generated socklens.rb to Formula/socklens.rb and update
+the shell installer's default version. Never point the public formula at
+unpublished assets. Scoop can use the release-hosted socklens.json directly.

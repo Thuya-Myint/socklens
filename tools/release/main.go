@@ -1,13 +1,15 @@
-// Release builds local Linux packages. It never pushes or publishes.
+// Release builds local platform packages. It never pushes or publishes.
 package main
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bytes"
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -23,6 +25,18 @@ type settings struct {
 	version, commit string
 	stamp           time.Time
 	root, out       string
+}
+
+type buildTarget struct{ OS, Arch string }
+
+var releaseTargets = []buildTarget{{"linux", "amd64"}, {"linux", "arm64"}, {"darwin", "amd64"}, {"darwin", "arm64"}, {"windows", "amd64"}, {"windows", "arm64"}}
+
+func (t buildTarget) label() string { return t.OS + "_" + t.Arch }
+func (t buildTarget) extension() string {
+	if t.OS == "windows" {
+		return ".zip"
+	}
+	return ".tar.gz"
 }
 
 type archiveFile struct {
@@ -80,14 +94,14 @@ func run(args []string, out io.Writer) error {
 		return fmt.Errorf("run from the SockLens project root: %w", err)
 	}
 	opts := settings{version: *version, commit: *commit, stamp: stamp.UTC(), root: root, out: *directory}
-	build := func(arch, destination string) error {
+	build := func(target buildTarget, destination string) error {
 		flags := fmt.Sprintf("-s -w -X main.version=%s -X main.commit=%s -X main.buildDate=%s", opts.version, opts.commit, opts.stamp.Format(time.RFC3339))
 		cmd := exec.CommandContext(context.Background(), *goBin, "build", "-trimpath", "-ldflags", flags, "-o", destination, "./cmd/socklens")
 		cmd.Dir = root
-		cmd.Env = buildEnvironment(os.Environ(), arch)
+		cmd.Env = buildEnvironment(os.Environ(), target)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			return fmt.Errorf("build linux/%s: %w\n%s", arch, err, output)
+			return fmt.Errorf("build %s/%s: %w\n%s", target.OS, target.Arch, err, output)
 		}
 		return nil
 	}
@@ -98,7 +112,7 @@ func run(args []string, out io.Writer) error {
 	return err
 }
 
-func buildEnvironment(base []string, arch string) []string {
+func buildEnvironment(base []string, target buildTarget) []string {
 	env := make([]string, 0, len(base)+3)
 	for _, entry := range base {
 		key, _, _ := strings.Cut(entry, "=")
@@ -106,10 +120,10 @@ func buildEnvironment(base []string, arch string) []string {
 			env = append(env, entry)
 		}
 	}
-	return append(env, "GOOS=linux", "GOARCH="+arch, "CGO_ENABLED=0")
+	return append(env, "GOOS="+target.OS, "GOARCH="+target.Arch, "CGO_ENABLED=0")
 }
 
-func packageRelease(opts settings, build func(string, string) error) error {
+func packageRelease(opts settings, build func(buildTarget, string) error) error {
 	if err := validateLabels(opts.version, opts.commit); err != nil {
 		return err
 	}
@@ -128,27 +142,36 @@ func packageRelease(opts settings, build func(string, string) error) error {
 	}
 	defer os.RemoveAll(staging)
 	var sums bytes.Buffer
-	for _, arch := range []string{"amd64", "arm64"} {
+	hashes := map[string]string{}
+	for _, target := range releaseTargets {
 		work, err := os.MkdirTemp("", "socklens-build-")
 		if err != nil {
 			return err
 		}
-		binary := filepath.Join(work, "socklens")
-		err = build(arch, binary)
+		binaryName := "socklens"
+		if target.OS == "windows" {
+			binaryName += ".exe"
+		}
+		binary := filepath.Join(work, binaryName)
+		err = build(target, binary)
 		if err != nil {
 			os.RemoveAll(work)
 			return err
 		}
-		name := fmt.Sprintf("socklens_%s_linux_%s", opts.version, arch)
-		archive := filepath.Join(staging, name+".tar.gz")
+		name := fmt.Sprintf("socklens_%s_%s", opts.version, target.label())
+		archive := filepath.Join(staging, name+target.extension())
 		files := []archiveFile{
 			{"README.md", filepath.Join(opts.root, "README.md"), 0644},
 			{"LICENSE", filepath.Join(opts.root, "LICENSE"), 0644},
 			{"CHANGELOG.md", filepath.Join(opts.root, "CHANGELOG.md"), 0644},
 			{"PHASES.md", filepath.Join(opts.root, "PHASES.md"), 0644},
-			{"socklens", binary, 0755},
+			{binaryName, binary, 0755},
 		}
-		err = writeArchive(archive, name, opts.stamp, files)
+		if target.OS == "windows" {
+			err = writeZIP(archive, name, opts.stamp, files)
+		} else {
+			err = writeArchive(archive, name, opts.stamp, files)
+		}
 		os.RemoveAll(work)
 		if err != nil {
 			return err
@@ -166,7 +189,23 @@ func packageRelease(opts settings, build func(string, string) error) error {
 		if closeErr != nil {
 			return closeErr
 		}
-		fmt.Fprintf(&sums, "%s  %s\n", hex.EncodeToString(digest.Sum(nil)), name+".tar.gz")
+		hash := hex.EncodeToString(digest.Sum(nil))
+		hashes[target.label()] = hash
+		fmt.Fprintf(&sums, "%s  %s\n", hash, name+target.extension())
+	}
+	formula, scoop, err := distributionMetadata(opts.version, hashes)
+	if err != nil {
+		return err
+	}
+	for _, file := range []struct {
+		name string
+		data []byte
+	}{{"socklens.rb", []byte(formula)}, {"socklens.json", scoop}} {
+		if err := os.WriteFile(filepath.Join(staging, file.name), file.data, 0644); err != nil {
+			return err
+		}
+		hash := sha256.Sum256(file.data)
+		fmt.Fprintf(&sums, "%x  %s\n", hash, file.name)
 	}
 	if err := os.WriteFile(filepath.Join(staging, "SHA256SUMS"), sums.Bytes(), 0644); err != nil {
 		return err
@@ -243,4 +282,84 @@ func writeArchive(destination, prefix string, stamp time.Time, files []archiveFi
 		}
 	}
 	return nil
+}
+
+func writeZIP(destination, prefix string, stamp time.Time, files []archiveFile) (err error) {
+	output, err := os.Create(destination)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if e := output.Close(); err == nil {
+			err = e
+		}
+	}()
+	archive := zip.NewWriter(output)
+	defer func() {
+		if e := archive.Close(); err == nil {
+			err = e
+		}
+	}()
+	for _, file := range files {
+		info, err := os.Stat(file.path)
+		if err != nil {
+			return err
+		}
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("ZIP input is not a regular file")
+		}
+		header := &zip.FileHeader{Name: prefix + "/" + file.name, Method: zip.Deflate}
+		header.SetMode(os.FileMode(file.mode))
+		header.SetModTime(stamp)
+		entry, err := archive.CreateHeader(header)
+		if err != nil {
+			return err
+		}
+		input, err := os.Open(file.path)
+		if err != nil {
+			return err
+		}
+		_, copyErr := io.Copy(entry, input)
+		closeErr := input.Close()
+		if copyErr != nil {
+			return copyErr
+		}
+		if closeErr != nil {
+			return closeErr
+		}
+	}
+	return nil
+}
+
+func distributionMetadata(version string, hashes map[string]string) (string, []byte, error) {
+	base := "https://github.com/Thuya-Myint/socklens/releases/download/" + version + "/"
+	formula := fmt.Sprintf("class Socklens < Formula\n  desc \"Inspect and monitor local ports\"\n  homepage \"https://github.com/Thuya-Myint/socklens\"\n  version \"%s\"\n  license \"MIT\"\n", strings.TrimPrefix(version, "v"))
+	for _, system := range []string{"darwin", "linux"} {
+		block := "on_macos"
+		if system == "linux" {
+			block = "on_linux"
+		}
+		formula += "  " + block + " do\n"
+		for _, arch := range []string{"amd64", "arm64"} {
+			block := "on_intel"
+			if arch == "arm64" {
+				block = "on_arm"
+			}
+			key := system + "_" + arch
+			formula += fmt.Sprintf("    %s do\n      url \"%ssocklens_%s_%s.tar.gz\"\n      sha256 \"%s\"\n    end\n", block, base, version, key, hashes[key])
+		}
+		formula += "  end\n"
+	}
+	formula += "  def install\n    bin.install \"socklens\"\n    doc.install \"README.md\", \"CHANGELOG.md\"\n  end\n  test do\n    assert_match version.to_s, shell_output(\"#{bin}/socklens version\")\n  end\nend\n"
+	architecture := map[string]any{}
+	for _, arch := range []string{"amd64", "arm64"} {
+		key := arch
+		if arch == "amd64" {
+			key = "64bit"
+		}
+		folder := "socklens_" + version + "_windows_" + arch
+		architecture[key] = map[string]string{"url": base + folder + ".zip", "hash": hashes["windows_"+arch], "extract_dir": folder}
+	}
+	scoop, err := json.MarshalIndent(map[string]any{"version": strings.TrimPrefix(version, "v"), "description": "Inspect and monitor local ports", "homepage": "https://github.com/Thuya-Myint/socklens", "license": "MIT", "architecture": architecture, "bin": "socklens.exe"}, "", "  ")
+	return formula, append(scoop, '\n'), err
 }

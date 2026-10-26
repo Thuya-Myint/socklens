@@ -1,59 +1,54 @@
-# SockLens v0.1.0
+# SockLens v0.2.0
 
-SockLens is a standard-library-only Go CLI for inspecting local ports on Linux
-and WSL2.
+Native Linux, macOS, and Windows port inspection and monitoring. All downloads
+are standalone executables; users do not need Go or a source checkout.
 
-## Included
+## Downloads
 
-- List and inspect TCP/UDP sockets, including IPv4/IPv6 and process owners.
-- Filter by local port, protocol, PID, or listener state.
-- Watch snapshots or changes in text or newline-delimited JSON.
-- Wait for matching sockets to appear or disappear.
-- Preview termination or send confirmed, same-user SIGTERM through a stable
-  process handle.
+Choose amd64 for Intel/AMD 64-bit or arm64 for ARM64/Apple Silicon:
 
-## Install — no Go required
+- Linux: socklens_v0.2.0_linux_ARCH.tar.gz
+- macOS: socklens_v0.2.0_darwin_ARCH.tar.gz
+- Windows: socklens_v0.2.0_windows_ARCH.zip
 
-SockLens installs as a ready-to-run binary. You do not need Go, a compiler,
-or a source checkout.
+Verify SHA-256 using SHA256SUMS. Each archive contains a versioned folder with
+the executable, license, and documentation.
 
-### Homebrew on Linux / WSL2
+## Install
+
+Linux/macOS users can use the binary installer from the main repository with
+SOCKLENS_VERSION=v0.2.0. After the Homebrew tap is promoted to this release:
 
 ```sh
 brew tap Thuya-Myint/socklens https://github.com/Thuya-Myint/socklens
 brew install Thuya-Myint/socklens/socklens
-```
-
-### Binary installer on Linux / WSL2
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/Thuya-Myint/socklens/main/install.sh -o /tmp/socklens-install.sh
-sh /tmp/socklens-install.sh
-export PATH="$HOME/.local/bin:$PATH"
 socklens version
 ```
 
-The installer selects amd64/arm64 and verifies SHA-256 before installing.
+Windows users can download and run install.ps1 from the main repository, or use
+the release-hosted Scoop manifest:
 
-### Manual download
-
-Download the archive matching your Linux architecture and SHA256SUMS:
-
-```sh
-sha256sum -c SHA256SUMS --ignore-missing
-tar -xzf socklens_v0.1.0_linux_amd64.tar.gz
-install -Dm755 socklens_v0.1.0_linux_amd64/socklens "$HOME/.local/bin/socklens"
+```powershell
+scoop install https://github.com/Thuya-Myint/socklens/releases/download/v0.2.0/socklens.json
+socklens version
 ```
 
-For ARM64, replace amd64 with arm64. macOS/native Windows packages are not yet
-released; Linux binaries cannot run directly on those operating systems.
+## Included
 
-## Supported scope
+Native TCP/UDP IPv4/IPv6 discovery and process names; list, inspect, watch,
+change detection, and wait; JSON/text output; confirmed process termination and
+dry-run previews. Windows termination is immediate and requires --force plus
+typed PID confirmation. Linux/macOS use identity-checked SIGTERM and refuse
+unsafe fallback. The action never escalates to SIGKILL automatically.
 
-Linux/WSL2 only. Actual termination requires Linux 5.3+ on amd64/arm64 with
-pidfd syscalls permitted. Owners are best-effort; sockets reflect the current
-network namespace. Polling can miss short-lived sockets. SIGTERM delivery does
-not guarantee exit. ARM64 is cross-compiled and not runtime-tested on this
-development machine.
+## Platform details
 
+Windows UDP rows are BOUND because the system table does not expose connection
+state. macOS process attribution is a best-effort last-recorded PID, not every
+holder of a shared socket. Safe macOS signaling depends on kernel support for
+audit-token/PID-version checks; unsupported/restricted systems refuse it.
+Socket snapshots and polling can miss transient changes.
+
+Native CI results must be reviewed before this release is published. ARM64 and
+Intel results are recorded in the CI run associated with the release commit.
 Licensed under MIT.

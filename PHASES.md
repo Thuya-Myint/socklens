@@ -219,3 +219,31 @@ A native GitHub CI job now gates Homebrew installation and formula tests.
 Pending: owner approval to push these distribution changes and update public
 release installation notes, then remote CI verification. Native platform
 implementation has not changed the published v0.1.0 release.
+
+## Native Windows/macOS development
+
+Owner authorized continuing native development and pushing after tests.
+Implemented Windows IP Helper TCP/UDP IPv4/IPv6 enumeration, process names,
+same-user token checks, creation-time identities, stable process handles,
+protected PID/range checks, and explicit --force for immediate termination.
+
+Implemented macOS binary sysctl PCB record parsing, IPv4/IPv6 and TCP state
+decoding, last-recorded PID attribution, atomic proc_info identity queries,
+and audit-token/PID-version SIGTERM with a no-signal capability probe and no
+PID-only fallback. Layout/permission failures remain errors, not empty results.
+
+Added six standalone binary targets, Windows ZIP, Linux/macOS tar archives,
+generated binary-only Homebrew/Scoop metadata, PowerShell installer, and
+no-Go installation tests. Current public v0.1.0 formula remains Linux-only
+until native assets are actually published; future recipes are generated in
+the candidate output directory.
+
+Validation passed locally: Linux race/static tests; Windows native TCP/UDP
+IPv4/IPv6 owner lookup, process identity/termination/protection, closed targets,
+dry-run and force-consent behavior; Windows installer with no programs on PATH,
+checksum-failure preservation; Darwin/Windows record-layout tests; all four
+Windows/macOS target compilations; workflow lint.
+
+Pending: remote native hardware CI, especially Intel/Apple Silicon macOS.
+Owner authorized pushing source after local tests. No new public release or
+replacement of v0.1.0 assets is authorized by that source-push instruction.

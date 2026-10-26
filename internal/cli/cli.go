@@ -26,16 +26,17 @@ Usage:
   socklens inspect [--protocol tcp|udp] [--pid PID] [--listening] [--json] PORT
   socklens watch [--interval 2s] [--count N] [--changes] [list filters] [--json]
   socklens wait [--until present|absent] [--timeout 30s] [--interval 500ms] [filters] PORT
-  socklens terminate --pid PID [--dry-run]
+  socklens terminate --pid PID [--dry-run] [--force]
 
 list includes listening, connected, and bound sockets in this network namespace.
 watch repeats snapshots until Ctrl+C; --count limits the number of snapshots.
 watch --changes reports additions, removals, and updates; unchanged polls are silent.
---listening selects TCP LISTEN and UDP UNCONN sockets.
+--listening selects TCP listeners and unconnected/bound UDP sockets.
 Process names are best-effort; unavailable owners are shown as "-".
 wait polls until a local socket condition matches; --timeout 0 waits indefinitely.
 Flags must precede the port argument for inspect and wait.
-terminate asks you to type the PID, then sends SIGTERM through a stable process handle.
+terminate requires the PID again; Linux/macOS send identity-checked SIGTERM.
+Windows requires --force and uses immediate process termination.
 terminate --dry-run previews the target without prompting or sending a signal.
 `
 
@@ -76,7 +77,7 @@ func RunContext(ctx context.Context, args []string, in io.Reader, out, errOut io
 		if err != nil {
 			return fail(errOut, err)
 		}
-		if _, err := fmt.Fprintf(out, "OK: %s/%s; proc socket tables readable (%d sockets). Process ownership may be hidden by permissions.\n", runtime.GOOS, runtime.GOARCH, len(rows)); err != nil {
+		if _, err := fmt.Fprintf(out, "OK: %s/%s; socket discovery available (%d sockets). Process ownership may be hidden by permissions.\n", runtime.GOOS, runtime.GOARCH, len(rows)); err != nil {
 			return fail(errOut, err)
 		}
 		return 0
@@ -186,7 +187,7 @@ func filterSockets(rows []platform.Socket, filter socketFilter) ([]platform.Sock
 			continue
 		}
 		if filter.listening && !((row.Protocol == "tcp" && row.State == "LISTEN") ||
-			(row.Protocol == "udp" && row.State == "UNCONN")) {
+			(row.Protocol == "udp" && (row.State == "UNCONN" || row.State == "BOUND"))) {
 			continue
 		}
 		if filter.pid != 0 {
@@ -244,6 +245,7 @@ func terminate(args []string, in io.Reader, out, errOut io.Writer) int {
 	fs.SetOutput(errOut)
 	pid := fs.Int("pid", 0, "process ID to terminate")
 	dryRun := fs.Bool("dry-run", false, "preview the target without sending a signal")
+	force := fs.Bool("force", false, "Windows only: allow immediate process termination")
 	if err := fs.Parse(args); err != nil {
 		if err == flag.ErrHelp {
 			return 0
@@ -251,14 +253,21 @@ func terminate(args []string, in io.Reader, out, errOut io.Writer) int {
 		return 1
 	}
 	if fs.NArg() != 0 || *pid <= 1 {
-		return fail(errOut, fmt.Errorf("usage: socklens terminate --pid PID [--dry-run] (PID must exceed 1)"))
+		return fail(errOut, fmt.Errorf("usage: socklens terminate --pid PID [--dry-run] [--force] (PID must exceed 1)"))
 	}
+	if *force && runtime.GOOS != "windows" {
+		return fail(errOut, fmt.Errorf("--force is only supported on Windows"))
+	}
+	if runtime.GOOS == "windows" && !*dryRun && !*force {
+		return fail(errOut, fmt.Errorf("Windows termination is immediate, not graceful; use --force to explicitly allow it"))
+	}
+	action := platform.TerminationAction()
 	if *dryRun {
 		id, err := platform.Identify(*pid)
 		if err != nil {
 			return fail(errOut, err)
 		}
-		if _, err := fmt.Fprintf(out, "Dry run: would send SIGTERM to %q (PID %d). No signal sent.\n", id.Name, id.PID); err != nil {
+		if _, err := fmt.Fprintf(out, "Dry run: would send %s to %q (PID %d). No signal sent.\n", action, id.Name, id.PID); err != nil {
 			return fail(errOut, err)
 		}
 		return 0
@@ -269,7 +278,7 @@ func terminate(args []string, in io.Reader, out, errOut io.Writer) int {
 	}
 	defer target.Close()
 	id := target.Identity()
-	if _, err := fmt.Fprintf(out, "Send SIGTERM to %q (PID %d)? Type %d to confirm: ", id.Name, id.PID, id.PID); err != nil {
+	if _, err := fmt.Fprintf(out, "Send %s to %q (PID %d)? Type %d to confirm: ", action, id.Name, id.PID, id.PID); err != nil {
 		return fail(errOut, err)
 	}
 	line, err := bufio.NewReader(io.LimitReader(in, 64)).ReadString('\n')
@@ -282,7 +291,7 @@ func terminate(args []string, in io.Reader, out, errOut io.Writer) int {
 	if err := target.Terminate(); err != nil {
 		return fail(errOut, err)
 	}
-	if _, err := fmt.Fprintf(out, "SIGTERM sent to PID %d. The process may take time to exit.\n", id.PID); err != nil {
+	if _, err := fmt.Fprintf(out, "%s sent to PID %d. The process may take time to exit.\n", action, id.PID); err != nil {
 		return fail(errOut, err)
 	}
 	return 0

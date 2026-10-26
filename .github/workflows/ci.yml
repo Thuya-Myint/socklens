@@ -33,7 +33,7 @@ jobs:
           cache: false
       - run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
   package:
-    needs: [test, security, installation]
+    needs: [test, security, installation, native]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -45,7 +45,7 @@ jobs:
       - run: cd dist/ci && sha256sum -c SHA256SUMS
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: socklens-linux-ci
+          name: socklens-platform-ci
           path: dist/ci/
 
   installation:
@@ -63,3 +63,23 @@ jobs:
         run: |
           env PATH=/usr/bin:/bin SOCKLENS_INSTALL_DIR="$RUNNER_TEMP/socklens-no-go" sh ./install.sh
           "$RUNNER_TEMP/socklens-no-go/socklens" version
+
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15-intel, macos-latest, windows-latest, windows-11-arm, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+          cache: false
+      - run: go vet ./...
+      - run: go test -v ./...
+      - run: go build -o socklens-native ./cmd/socklens
+
+      - name: Test standalone Windows installer without Go on PATH
+        if: runner.os == 'Windows'
+        run: ./tests/install_windows_test.ps1

@@ -9,7 +9,9 @@ case "$version" in v[0-9]*) ;; *) fail "invalid version: $version" ;; esac
 case "$version" in *[!A-Za-z0-9._+-]*) fail "invalid version: $version" ;; esac
 case "$(uname -s)" in
   Linux) system=linux ;;
-  Darwin) fail "macOS binaries are not released yet. This release supports Linux and WSL2." ;;
+  Darwin)
+    [ "$version" != v0.1.0 ] || fail "macOS binaries are not released for v0.1.0. Select a newer native release."
+    system=darwin ;;
   *) fail "native support for this operating system is not released yet. Windows users can use WSL2." ;;
 esac
 case "$(uname -m)" in

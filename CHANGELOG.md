@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.2.0 — unreleased
+
+- Native Windows IPv4/IPv6 TCP/UDP tables and process-owner/name discovery.
+- Same-user Windows process handles with explicit --force for immediate termination.
+- Native macOS sysctl socket tables and version-checked process signaling.
+- Native hardware CI for Windows, Intel/Apple Silicon macOS, and ARM64 Linux.
+- Six prebuilt release targets; Windows ZIP and Linux/macOS tar archives.
+- Generated binary-only Homebrew/Scoop recipes, standalone PowerShell installer.
+- No Go requirement for end-user installation.
+- Native PID range checks and cross-platform ABI/integration tests.
+
 ## v0.1.0 — 2026-10-26
 
 First release for Linux and WSL2.

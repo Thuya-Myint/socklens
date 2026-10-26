@@ -1,10 +1,13 @@
 # SockLens
 
-Local port discovery, monitoring, and confirmed process termination for Linux/WSL2.
+Local port discovery, monitoring, and confirmed process termination in pure Go.
 
 MIT licensed. See CHANGELOG.md for release history and SECURITY.md for reporting.
 
-A Go standard-library-only CLI for inspecting TCP/UDP ports on Linux and WSL2.
+A Go standard-library-only CLI for TCP/UDP inspection on Linux, Windows, and macOS.
+
+Published v0.1.0 supports Linux/WSL2. Native Windows/macOS support below is
+being validated for v0.2.0; those release binaries are not published yet.
 
 ## Install (no Go or source checkout required)
 
@@ -99,13 +102,13 @@ make build VERSION=v0.1.0
 
 ## Safe termination
 
-Termination accepts one explicit PID, displays the process name, and requires
+On Linux/macOS, termination accepts one explicit PID, displays the process name, and requires
 typing that PID followed by Enter. It sends SIGTERM only; it never escalates
 to SIGKILL or claims that the process has exited. PID 1, invalid PIDs, SockLens
 itself, and processes owned by another user are refused. Process start time
 and ownership are rechecked after confirmation to detect PID reuse.
 
-Before asking for confirmation, SockLens captures a Linux process handle
+On Linux, before asking for confirmation, SockLens captures a process handle
 (pidfd) and holds it until completion or cancellation. SIGTERM is sent through
 that handle, preventing the final check-to-signal PID-reuse race. If the target
 exits or the handle is unavailable, termination fails without falling back to
@@ -134,9 +137,11 @@ restrictions, exiting processes, and kernel sockets can leave PIDs unknown
 - internal/cli: parsing, validation, output, confirmation.
 - internal/platform: shared socket/identity types and build-tagged backends.
 - Linux backend: proc parsing, owner matching, and SIGTERM.
-- Other platforms: help/version work; OS operations return a clear unsupported
-  error. Add windows.go and darwin.go with matching functions to extend support,
-  and narrow the unsupported build tag accordingly.
+- Windows backend: native IP Helper socket tables, process names and token-owner
+  validation, stable process handles; immediate termination requires --force.
+- macOS backend: binary sysctl PCB records and proc_info process identities;
+  audit-token signaling checks PID versions and fails closed if unavailable.
+- Other operating systems return a clear unsupported error.
 
 ## Development
 
@@ -148,8 +153,8 @@ go test -race -cover ./...
 
 Tests cover parser failures, IPv4/IPv6, a real local listener and owner lookup,
 protected PIDs, stale identities, and termination of a dedicated test child.
-CI also cross-compiles Windows/macOS stubs, Linux arm64 handles, and a Linux
-s390x build with termination disabled.
+CI includes native Windows/macOS and ARM64 jobs alongside Linux regressions
+and an unsupported-termination-architecture compile check.
 
 The module path is github.com/Thuya-Myint/socklens. The configured remote is
 [Thuya-Myint/socklens](https://github.com/Thuya-Myint/socklens).
@@ -332,10 +337,12 @@ This produces:
 - socklens_v0.1.0_linux_arm64.tar.gz
 - SHA256SUMS
 
-Each archive contains a versioned folder with the executable, README.md,
-LICENSE, CHANGELOG.md, and PHASES.md. The binaries are built with CGO disabled. Only Linux is packaged;
-Windows/macOS are still stubs. ARM64 is cross-compiled and not runtime-tested
-on this development machine.
+Each archive contains the executable, README.md, LICENSE, CHANGELOG.md, and
+PHASES.md in a versioned folder. Native releases package Linux/macOS .tar.gz and
+Windows .zip for amd64/arm64, all built with CGO disabled. Release output also
+contains generated socklens.rb (Homebrew) and socklens.json (Scoop) definitions.
+These definitions reference binary archive URLs and their exact hashes; they
+never compile source or depend on Go.
 
 The packager validates version/commit labels, builds in temporary folders, and
 publishes the completed local package directory in one rename. It refuses to
@@ -371,3 +378,62 @@ The release page includes verification and manual installation instructions.
 ## License
 
 MIT. See LICENSE.
+
+## Native v0.2.0 platform behavior (pending release)
+
+| Platform | Discovery / inspect / watch / wait | Termination |
+| --- | --- | --- |
+| Linux / WSL2 | TCP/UDP IPv4/IPv6, owners and names | Same-user SIGTERM via pidfd |
+| Windows 10+ | Native TCP/UDP IPv4/IPv6, owning PIDs and names | Explicit --force, typed PID, same-user stable handle |
+| macOS | Native TCP/UDP IPv4/IPv6, best-effort PID/name attribution | SIGTERM with captured PID-version token; refuses if unsupported |
+
+On Windows, --force is required because TerminateProcess is immediate and
+does not provide graceful application shutdown. It can interrupt unsaved work.
+A dry run never terminates or prompts. PIDs are range-checked and system/self
+targets are protected. Windows UDP tables expose bound endpoints without
+connection state, so their state is BOUND; --listening includes those rows.
+
+```powershell
+socklens.exe list --listening
+socklens.exe inspect 8080
+socklens.exe terminate --pid 12345 --dry-run
+socklens.exe terminate --pid 12345 --force
+```
+
+macOS PID attribution is the socket's last recorded PID, not an exhaustive list
+of processes holding the descriptor. Shared sockets and visibility restrictions
+can make attribution incomplete. macOS kernel record layouts are validated;
+unsupported/truncated layouts return an error instead of an empty socket list.
+Safe signaling uses the kernel's audit-token/PID-version check; older or restricted
+systems may refuse termination while read-only commands remain usable.
+
+The JSON Inode field is an opaque platform-specific socket identity: Linux
+inode, macOS PCB/generation token, or empty when Windows supplies no equivalent.
+
+### Native installation after v0.2.0 publication
+
+Mac users will use Homebrew after the tap is updated with the generated formula.
+No Go is required. The shell installer also accepts a published native version:
+
+```sh
+SOCKLENS_VERSION=v0.2.0 sh /tmp/socklens-install.sh
+```
+
+Windows users can download install.ps1 from the repository, review it, then run:
+
+```powershell
+.\install.ps1
+socklens version
+```
+
+The PowerShell installer selects the latest published release and CPU, verifies
+SHA-256, and installs into the current user's local application directory.
+It updates user PATH unless -NoPathUpdate is supplied. If the latest release
+has no Windows asset, installation fails without replacing an existing binary.
+Scoop users can install the release's generated manifest after publication:
+
+```powershell
+scoop install https://github.com/Thuya-Myint/socklens/releases/latest/download/socklens.json
+```
+
+All normal user paths install finished executables; Go is only for contributors.

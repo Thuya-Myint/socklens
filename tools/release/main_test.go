@@ -2,11 +2,14 @@ package main
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bytes"
 	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -26,12 +29,33 @@ func testSettings(t *testing.T) settings {
 	return settings{version: "v0.1.0-test", commit: "abcdef123456", stamp: time.Date(2026, 10, 26, 0, 0, 0, 0, time.UTC), root: root, out: filepath.Join(root, "dist")}
 }
 
-func fakeBuild(arch, destination string) error {
-	return os.WriteFile(destination, []byte("binary-"+arch), 0755)
+func fakeBuild(target buildTarget, destination string) error {
+	return os.WriteFile(destination, []byte("binary-"+target.label()), 0755)
 }
 
 func readArchive(t *testing.T, path string) map[string][]byte {
 	t.Helper()
+	if strings.HasSuffix(path, ".zip") {
+		archive, err := zip.OpenReader(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer archive.Close()
+		result := map[string][]byte{}
+		for _, entry := range archive.File {
+			reader, err := entry.Open()
+			if err != nil {
+				t.Fatal(err)
+			}
+			data, err := io.ReadAll(reader)
+			reader.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+			result[entry.Name] = data
+		}
+		return result
+	}
 	file, err := os.Open(path)
 	if err != nil {
 		t.Fatal(err)
@@ -78,16 +102,16 @@ func TestPackageReleaseAndChecksums(t *testing.T) {
 		t.Fatal(err)
 	}
 	lines := strings.Split(strings.TrimSpace(string(contents)), "\n")
-	if len(lines) != 2 {
+	if len(lines) != len(releaseTargets)+2 {
 		t.Fatalf("wrong checksum count: %s", contents)
 	}
-	for i, arch := range []string{"amd64", "arm64"} {
+	for i, target := range releaseTargets {
 		fields := strings.Fields(lines[i])
 		if len(fields) != 2 {
 			t.Fatal(lines[i])
 		}
-		name := "socklens_" + opts.version + "_linux_" + arch
-		if fields[1] != name+".tar.gz" {
+		name := "socklens_" + opts.version + "_" + target.label()
+		if fields[1] != name+target.extension() {
 			t.Fatal(fields[1])
 		}
 		archive := filepath.Join(directory, fields[1])
@@ -100,7 +124,11 @@ func TestPackageReleaseAndChecksums(t *testing.T) {
 			t.Fatal("checksum mismatch")
 		}
 		files := readArchive(t, archive)
-		if len(files) != 5 || string(files[name+"/socklens"]) != "binary-"+arch || len(files[name+"/README.md"]) == 0 || len(files[name+"/PHASES.md"]) == 0 || len(files[name+"/LICENSE"]) == 0 || len(files[name+"/CHANGELOG.md"]) == 0 {
+		binaryName := "socklens"
+		if target.OS == "windows" {
+			binaryName += ".exe"
+		}
+		if len(files) != 5 || string(files[name+"/"+binaryName]) != "binary-"+target.label() || len(files[name+"/README.md"]) == 0 || len(files[name+"/PHASES.md"]) == 0 || len(files[name+"/LICENSE"]) == 0 || len(files[name+"/CHANGELOG.md"]) == 0 {
 			t.Fatalf("wrong archive contents: %+v", files)
 		}
 	}
@@ -119,7 +147,7 @@ func TestPackageNeverOverwrites(t *testing.T) {
 	marker := filepath.Join(destination, "keep")
 	os.WriteFile(marker, []byte("original"), 0644)
 	called := false
-	err := packageRelease(opts, func(arch, path string) error { called = true; return nil })
+	err := packageRelease(opts, func(target buildTarget, path string) error { called = true; return nil })
 	data, _ := os.ReadFile(marker)
 	if err == nil || called || string(data) != "original" {
 		t.Fatalf("existing release changed: %v", err)
@@ -129,11 +157,11 @@ func TestPackageNeverOverwrites(t *testing.T) {
 func TestPackageFailureLeavesNoRelease(t *testing.T) {
 	opts := testSettings(t)
 	sentinel := errors.New("compiler failed")
-	err := packageRelease(opts, func(arch, destination string) error {
-		if arch == "arm64" {
+	err := packageRelease(opts, func(target buildTarget, destination string) error {
+		if target.Arch == "arm64" {
 			return sentinel
 		}
-		return fakeBuild(arch, destination)
+		return fakeBuild(target, destination)
 	})
 	if !errors.Is(err, sentinel) {
 		t.Fatalf("build error lost: %v", err)
@@ -154,7 +182,7 @@ func TestArchiveReproducible(t *testing.T) {
 	if err := packageRelease(second, fakeBuild); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"SHA256SUMS", "socklens_" + opts.version + "_linux_amd64.tar.gz", "socklens_" + opts.version + "_linux_arm64.tar.gz"} {
+	for _, name := range releaseFileNames(opts.version) {
 		a, _ := os.ReadFile(filepath.Join(opts.out, opts.version, name))
 		b, _ := os.ReadFile(filepath.Join(second.out, second.version, name))
 		if !bytes.Equal(a, b) {
@@ -183,9 +211,9 @@ func TestLabelsAndArguments(t *testing.T) {
 }
 
 func TestBuildEnvironment(t *testing.T) {
-	env := buildEnvironment([]string{"GOOS=windows", "GOARCH=386", "CGO_ENABLED=1", "OTHER=keep"}, "arm64")
+	env := buildEnvironment([]string{"GOOS=windows", "GOARCH=386", "CGO_ENABLED=1", "OTHER=keep"}, buildTarget{"windows", "arm64"})
 	joined := strings.Join(env, "\n")
-	for _, want := range []string{"GOOS=linux", "GOARCH=arm64", "CGO_ENABLED=0", "OTHER=keep"} {
+	for _, want := range []string{"GOOS=windows", "GOARCH=arm64", "CGO_ENABLED=0", "OTHER=keep"} {
 		if !strings.Contains(joined, want) {
 			t.Fatal("missing", want)
 		}
@@ -199,6 +227,67 @@ func TestBuildEnvironment(t *testing.T) {
 		}
 		if count != 1 {
 			t.Fatalf("duplicate %s: %v", key, env)
+		}
+	}
+}
+
+func releaseFileNames(version string) []string {
+	names := []string{"SHA256SUMS", "socklens.rb", "socklens.json"}
+	for _, target := range releaseTargets {
+		names = append(names, "socklens_"+version+"_"+target.label()+target.extension())
+	}
+	return names
+}
+
+func TestPackageManagerMetadata(t *testing.T) {
+	opts := testSettings(t)
+	if err := packageRelease(opts, fakeBuild); err != nil {
+		t.Fatal(err)
+	}
+	directory := filepath.Join(opts.out, opts.version)
+	data, err := os.ReadFile(filepath.Join(directory, "socklens.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest struct {
+		Version      string
+		Bin          string
+		Architecture map[string]struct {
+			URL        string
+			Hash       string
+			ExtractDir string `json:"extract_dir"`
+		}
+	}
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if manifest.Version != "0.1.0-test" || manifest.Bin != "socklens.exe" || len(manifest.Architecture) != 2 {
+		t.Fatalf("bad Scoop manifest: %s", data)
+	}
+	for key, entry := range manifest.Architecture {
+		arch := key
+		if key == "64bit" {
+			arch = "amd64"
+		}
+		name := "socklens_" + opts.version + "_windows_" + arch
+		bytes, err := os.ReadFile(filepath.Join(directory, name+".zip"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		hash := sha256.Sum256(bytes)
+		if entry.Hash != fmt.Sprintf("%x", hash) || entry.ExtractDir != name || !strings.HasSuffix(entry.URL, name+".zip") {
+			t.Fatalf("Scoop entry does not match release: %+v", entry)
+		}
+	}
+	formula, err := os.ReadFile(filepath.Join(directory, "socklens.rb"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, system := range []string{"darwin", "linux"} {
+		for _, arch := range []string{"amd64", "arm64"} {
+			if !strings.Contains(string(formula), "socklens_"+opts.version+"_"+system+"_"+arch+".tar.gz") {
+				t.Fatal("formula missing target", system, arch)
+			}
 		}
 	}
 }

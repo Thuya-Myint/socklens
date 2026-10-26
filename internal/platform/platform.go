@@ -1,9 +1,13 @@
 // Package platform isolates operating-system-specific socket and process access.
 package platform
 
-import "errors"
+import (
+	"errors"
+	"runtime"
+	"sort"
+)
 
-var ErrUnsupported = errors.New("this platform is not supported yet; use Linux or WSL2")
+var ErrUnsupported = errors.New("unsupported operating system")
 
 // Process is a best-effort process name observed during socket enumeration.
 type Process struct {
@@ -37,3 +41,27 @@ type Target interface {
 }
 
 var ErrSafeTerminationUnsupported = errors.New("safe process handles are unavailable")
+
+// TerminationAction describes the action truthfully on each operating system.
+func TerminationAction() string {
+	if runtime.GOOS == "windows" {
+		return "immediate termination"
+	}
+	return "SIGTERM"
+}
+
+func sortSockets(rows []Socket) {
+	sort.SliceStable(rows, func(i, j int) bool {
+		a, b := rows[i], rows[j]
+		if a.Protocol != b.Protocol {
+			return a.Protocol < b.Protocol
+		}
+		if a.Local != b.Local {
+			return a.Local < b.Local
+		}
+		if a.Remote != b.Remote {
+			return a.Remote < b.Remote
+		}
+		return a.Inode < b.Inode
+	})
+}
