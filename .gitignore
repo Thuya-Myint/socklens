@@ -1,0 +1,5 @@
+/socklens
+/bin/
+*.test
+coverage.out
+/dist/
