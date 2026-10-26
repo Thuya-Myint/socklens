@@ -1,19 +1,14 @@
 # SockLens
 
-Local port discovery, monitoring, and confirmed process termination in pure Go.
+Inspect local TCP/UDP ports, see their processes, monitor changes, and terminate a process with confirmation. Available for macOS, Windows, Linux, and WSL2.
 
-MIT licensed. See CHANGELOG.md for release history and SECURITY.md for reporting.
+## Installation
 
-A Go standard-library-only CLI for TCP/UDP inspection on Linux, Windows, and macOS.
+The current public release is v0.1.0 for Linux/WSL2. Native macOS and Windows installation requires v0.2.0, which is not published yet; those instructions become usable when it is released.
 
-Published v0.1.0 supports Linux/WSL2. Native Windows/macOS support below is
-being validated for v0.2.0; those release binaries are not published yet.
+Install a ready-to-run binary. Go, a compiler, and a source checkout are not required.
 
-## Install (no Go or source checkout required)
-
-The published release contains ready-to-run executables. Choose one method:
-
-### Homebrew on Linux / WSL2
+### Homebrew — macOS and Linux
 
 ```sh
 brew tap Thuya-Myint/socklens https://github.com/Thuya-Myint/socklens
@@ -21,11 +16,20 @@ brew install Thuya-Myint/socklens/socklens
 socklens version
 ```
 
-This tap installs the prebuilt release binary. It does not install Go or compile
-SockLens. The explicit tap URL uses this repository; no separate tap repository
-is required. Update with brew update and brew upgrade Thuya-Myint/socklens/socklens.
+Homebrew selects the binary for Intel/AMD 64-bit or ARM64, including Apple Silicon.
 
-### Binary installer on Linux / WSL2
+### Scoop — Windows
+
+With Scoop installed, run in PowerShell:
+
+```powershell
+scoop install https://github.com/Thuya-Myint/socklens/releases/download/v0.2.0/socklens.json
+socklens version
+```
+
+The manifest selects the x64 or ARM64 Windows binary.
+
+### Linux — binary installer
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/Thuya-Myint/socklens/main/install.sh -o /tmp/socklens-install.sh
@@ -34,406 +38,216 @@ export PATH="$HOME/.local/bin:$PATH"
 socklens version
 ```
 
-The installer detects amd64/arm64, downloads v0.1.0 from GitHub Releases,
-verifies SHA-256, and installs into ~/.local/bin. It needs no Go, Git checkout,
-sudo, or compilation. Set SOCKLENS_INSTALL_DIR to choose another destination;
-SOCKLENS_VERSION selects another published version. It does not edit shell
-startup files. Uninstall by removing the installed socklens executable.
+The installer detects your CPU, verifies the download checksum, and installs into ~/.local/bin without sudo. Run the commands inside WSL2 if you use this method on Windows.
 
-Native macOS and Windows binaries are not released yet. On Windows, use WSL2.
-Homebrew on a Mac cannot run the Linux release; native platform support follows
-this installation work.
-
-### Manual download
-
-Download the archive for your Linux CPU and SHA256SUMS from
-[GitHub Releases](https://github.com/Thuya-Myint/socklens/releases/tag/v0.1.0).
-Verify it with sha256sum -c SHA256SUMS --ignore-missing, extract it, and copy
-the socklens executable into a directory on PATH. No Go installation is needed.
-
-## Build from source (contributors only)
-
-Building SockLens is optional for users. Contributors need a supported,
-patched Go toolchain (Go 1.26+), GNU Make, and a C compiler for race tests.
+To choose another installation directory or published version:
 
 ```sh
-make build
-make check
-make test
-make install
+SOCKLENS_INSTALL_DIR="$HOME/bin" SOCKLENS_VERSION=v0.2.0 sh /tmp/socklens-install.sh
 ```
 
-make install builds source and installs into ~/.local/bin; it is a development
-target, not the normal user install path. PREFIX, BINDIR, and DESTDIR can
-override its destination. If Go is outside PATH, set GO=/path/to/go/bin/go
-and GOFMT=/path/to/go/bin/gofmt when invoking Make.
+The installer does not change shell startup files. Add your installation directory to PATH if you want to run socklens from any terminal.
 
+## Commands
 
-No third-party Go modules or runtime tools are required.
+| Command | Purpose |
+| --- | --- |
+| help | Show the command overview |
+| version | Show version and build information |
+| check | Check whether socket discovery works |
+| list | List local TCP/UDP sockets |
+| inspect | Inspect a local port |
+| watch | Monitor sockets or changes |
+| wait | Wait for matching sockets to appear or disappear |
+| terminate | Preview or confirm process termination |
+
+### help
 
 ```sh
-go build -o bin/socklens ./cmd/socklens
-./bin/socklens help
-./bin/socklens version
-./bin/socklens check
-./bin/socklens list
-./bin/socklens list --protocol tcp --port 8080
-./bin/socklens list --listening
-./bin/socklens list --pid 12345
-./bin/socklens inspect --listening --protocol tcp 8080
-./bin/socklens inspect --json 8080
-./bin/socklens terminate --pid 12345 --dry-run
-./bin/socklens terminate --pid 12345
-./bin/socklens watch --listening
-./bin/socklens watch --port 8080 --interval 1s --count 5
-./bin/socklens watch --protocol tcp --json --count 3
+socklens help
+socklens --help
+socklens -h
 ```
 
-Flags must precede positional arguments. List includes all socket states;
-inspect filters by **local** port. IPv4 and IPv6 are supported. A successful
-empty lookup returns no rows (JSON: []). Errors normally return status 1; wait
-uses 2 for timeout and 130 for interruption.
+Running socklens without a command also shows help.
 
-To embed a release version:
+For command-specific options:
 
 ```sh
-make build VERSION=v0.1.0
+socklens list --help
+socklens inspect --help
+socklens watch --help
+socklens wait --help
+socklens terminate --help
 ```
 
-## Safe termination
+These five commands also accept -h.
 
-On Linux/macOS, termination accepts one explicit PID, displays the process name, and requires
-typing that PID followed by Enter. It sends SIGTERM only; it never escalates
-to SIGKILL or claims that the process has exited. PID 1, invalid PIDs, SockLens
-itself, and processes owned by another user are refused. Process start time
-and ownership are rechecked after confirmation to detect PID reuse.
-
-On Linux, before asking for confirmation, SockLens captures a process handle
-(pidfd) and holds it until completion or cancellation. SIGTERM is sent through
-that handle, preventing the final check-to-signal PID-reuse race. If the target
-exits or the handle is unavailable, termination fails without falling back to
-PID-based signaling.
-
-Actual termination currently requires Linux amd64 or arm64, Linux 5.3 or newer,
-and permission to use pidfd_open/pidfd_send_signal (some sandbox policies block
-these calls). Other Linux architectures keep listing, monitoring, waiting, and
-dry-run support, while actual termination reports unsupported. Avoid running
-SockLens as root; it needs no elevated privileges for normal use.
-
-See the Linux manuals for [pidfd_open](https://man7.org/linux/man-pages/man2/pidfd_open.2.html)
-and [pidfd_send_signal](https://man7.org/linux/man-pages/man2/pidfd_send_signal.2.html).
-
-## Linux / WSL2 scope
-
-Socket data comes from /proc/net/{tcp,tcp6,udp,udp6}; owners are matched through
-/proc/PID/fd. Tables reflect the current network namespace. WSL2 reports the
-Linux environment's sockets, not every Windows host process. Permission
-restrictions, exiting processes, and kernel sockets can leave PIDs unknown
-(shown as "-"). Socket and owner snapshots are not atomic.
-
-## Architecture
-
-- cmd/socklens: executable entry and injected version.
-- internal/cli: parsing, validation, output, confirmation.
-- internal/platform: shared socket/identity types and build-tagged backends.
-- Linux backend: proc parsing, owner matching, and SIGTERM.
-- Windows backend: native IP Helper socket tables, process names and token-owner
-  validation, stable process handles; immediate termination requires --force.
-- macOS backend: binary sysctl PCB records and proc_info process identities;
-  audit-token signaling checks PID versions and fails closed if unavailable.
-- Other operating systems return a clear unsupported error.
-
-## Development
+### version
 
 ```sh
-gofmt -w cmd internal
-go vet ./...
-go test -race -cover ./...
+socklens version
+socklens --version
 ```
 
-Tests cover parser failures, IPv4/IPv6, a real local listener and owner lookup,
-protected PIDs, stale identities, and termination of a dedicated test child.
-CI includes native Windows/macOS and ARM64 jobs alongside Linux regressions
-and an unsupported-termination-architecture compile check.
+Shows the installed version, commit, and build date. Takes no additional arguments.
 
-The module path is github.com/Thuya-Myint/socklens. The configured remote is
-[Thuya-Myint/socklens](https://github.com/Thuya-Myint/socklens).
-All build/install/release commands work locally and never push or publish.
-
-## Discovery filters (phase 2)
-
-- --listening includes TCP LISTEN sockets and UDP UNCONN sockets. UDP has no
-  TCP-style listen operation; connected UDP sockets are excluded by this flag.
-- --pid PID includes sockets with that observed owner. Shared sockets retain all
-  observed owners. Sockets with unknown owners cannot match this filter.
-- Filters combine with --port, --protocol, and --json; inspect accepts the same
-  filters and takes its local port as a positional argument.
-- Tables now include PROCESSES entries such as 12345:"node". Process names are
-  read from Linux comm (short names, typically limited to 15 bytes), not full
-  command lines. Unreadable names show as "-"; terminal control bytes are escaped.
-- Existing JSON fields remain intact. Each socket also has a Processes array of
-  objects with PID and Name fields; an unavailable name is an empty string.
-- Explicit --port 0 and nonpositive --pid values are rejected.
-
-See PHASES.md for completed phases and validation.
-
-## Live monitoring (phase 3)
-
-Use watch to collect successive snapshots. The first appears immediately.
-By default, SockLens waits two seconds after each completed snapshot before
-collecting the next one. --interval accepts Go durations such as 500ms, 1s,
-and 1m, with a minimum of 100ms. Collection never overlaps.
-
---count N stops after N snapshots; the default (0) watches until Ctrl+C.
-SIGTERM also stops watching cleanly on Linux. A stopped watch exits with status
-0; invalid options, read failures, or output failures exit with status 1.
-Cancellation is checked between snapshots and after collection; an in-progress
-proc scan must complete before watch exits.
-
-All list filters work with watch: --port, --protocol, --pid, and --listening.
-Each refresh reads new socket and process information. Text output appends a
-timestamp and table for every snapshot, preserving the history in your terminal.
-It does not clear your screen.
-
-watch --json emits newline-delimited JSON (one compact object per snapshot):
-
-```json
-{"timestamp":"2026-10-26T00:00:00Z","sockets":[]}
-```
-
-timestamp is the UTC time at completion of collection and filtering. sockets
-uses the same socket fields as list --json, including Processes, and is [] when
-no sockets match. list/inspect JSON remains a single formatted array.
-Default watch mode records full snapshots. Use --changes for additions,
-removals, and updates. Polling cannot capture every short-lived connection
-between refreshes.
-
-## Change detection (phase 4)
+### check
 
 ```sh
-./bin/socklens watch --changes --listening
-./bin/socklens watch --changes --port 8080 --interval 500ms
-./bin/socklens watch --changes --json --count 10
+socklens check
 ```
 
-The first poll always emits a baseline, even if it is empty. Existing sockets
-appear in its added list; baseline:true distinguishes initial inventory from
-a socket opening later. Later polls emit only changes:
+Checks socket discovery and reports the number of observed sockets. Takes no options. Process names and ownership may be unavailable because of permissions.
 
-- ADDED: a socket appeared in the filtered results.
-- REMOVED: a socket disappeared from the filtered results.
-- UPDATED BEFORE / UPDATED AFTER: the same observed socket changed its state,
-  PID ownership, or process name. The paired tables retain matching row order.
+### Shared discovery options
 
-Change-mode JSON uses one compact object per event batch:
+| Option | Available on | Meaning |
+| --- | --- | --- |
+| --port PORT | list, watch | Filter by local port, from 1 to 65535 |
+| --protocol tcp or --protocol udp | list, inspect, watch, wait | Filter by protocol; the default includes both |
+| --pid PID | list, inspect, watch, wait | Filter by an observed process ID |
+| --listening | list, inspect, watch, wait | Select TCP listeners and unconnected/bound UDP sockets |
+| --json | list, inspect, watch, wait | Produce JSON output |
 
-```json
-{"timestamp":"2026-10-26T00:00:00Z","baseline":true,"added":[],"removed":[],"updated":[]}
-```
+Filters combine: a socket must match every supplied filter. inspect and wait take their port as a positional argument; do not also pass --port.
 
-added and removed contain socket objects. updated contains objects with before
-and after socket objects. Arrays are always present, including empty arrays.
-Unchanged polls emit no line. --count still counts polls, including quiet ones,
-so --count 10 can emit fewer than ten event batches. Ctrl+C still exits cleanly.
-
-Comparisons happen after filtering. A state change that makes a socket leave
---listening results is therefore a removal; entering the filter is an addition.
-Identity uses protocol, inode, and local/remote endpoints. An inode or endpoint
-change is a removal plus addition. Owner ordering does not generate false
-events. Duplicate rows are counted rather than collapsed; for ambiguous duplicate
-identities, exact matches are retained first and remaining updates are paired
-deterministically.
-
-These are differences between observed snapshots, not a kernel event stream.
-A removal can reflect a filter change or missing visibility; an owner update
-can reflect a permission/process-discovery change. Brief sockets and an identity
-reused between polls can be missed.
-
-## Waiting for a port condition (phase 5)
+Put options before the final port argument:
 
 ```sh
-# Wait up to 30 seconds for a local TCP listener:
-./bin/socklens wait --listening --protocol tcp 8080
-
-# Wait up to 10 seconds for matching listeners to disappear:
-./bin/socklens wait --until absent --listening --timeout 10s 8080
-
-# Wait for a particular process, returning one JSON result:
-./bin/socklens wait --pid 12345 --listening --json 8080
-
-# Wait without a deadline; Ctrl+C cancels:
-./bin/socklens wait --timeout 0 --interval 1s 8080
+socklens inspect --protocol tcp --json 8080
+socklens wait --listening --timeout 10s 8080
 ```
 
-Flags must precede the required local PORT argument. --until defaults to present;
-absent succeeds when no sockets match. Existing --protocol, --pid, and
---listening filters apply. The port is positional, as with inspect; do not
-combine it with --port.
+### list
 
-The first poll is immediate. --interval defaults to 500ms (minimum 100ms).
---timeout defaults to 30s; 0 disables the deadline. Polling is quiet until
-success, timeout, or interruption. An in-progress proc scan must finish before
-a deadline or cancellation is handled; a result returned after the deadline is
-rejected.
+```sh
+socklens list
+socklens list --listening
+socklens list --port 8080 --protocol tcp
+socklens list --pid 12345
+socklens list --json
+```
 
-Success emits a confirmation and, if present, matching socket rows. --json emits
-one object containing timestamp (UTC), condition, port, and sockets (an array,
-including [] for absent). Errors go to stderr and produce no JSON success object.
+Lists sockets in all states by default. Text output includes protocol, local/remote endpoints, state, process IDs, and process names. Unavailable owner information appears as a dash.
 
-Exit codes for wait:
+IPv4 and IPv6 are supported. On Windows, UDP rows are BOUND because connection state is not provided by the system table. On macOS, process attribution is the last recorded PID and may not include every holder of a shared socket. WSL2 shows Linux sockets in that WSL environment.
+
+### inspect
+
+```sh
+socklens inspect 8080
+socklens inspect --listening --protocol tcp 8080
+socklens inspect --pid 12345 --json 8080
+```
+
+Shows sockets matching the required local port. Accepts --protocol, --pid, --listening, and --json.
+
+An empty result means no matching socket was observed. Empty JSON output is [].
+
+### watch
+
+```sh
+socklens watch
+socklens watch --listening --interval 1s
+socklens watch --port 8080 --count 5
+socklens watch --changes --protocol tcp
+socklens watch --changes --json
+```
+
+Takes the first snapshot immediately. Stop with Ctrl+C.
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| --interval DURATION | 2s | Wait between completed snapshots; minimum 100ms |
+| --count N | 0 | Stop after N polls; 0 keeps watching |
+| --changes | Off | Emit a baseline, then only additions, removals, and updates |
+
+All shared discovery options are supported.
+
+In normal mode, each refresh prints a timestamp and socket table. With --changes, the first output is the baseline. Later output uses ADDED, REMOVED, and UPDATED BEFORE/AFTER; unchanged polls stay quiet. --count counts polls, including quiet ones.
+
+With --json, each emitted record is one JSON line. Normal records contain timestamp and sockets; change records contain timestamp, baseline, added, removed, and updated. Updates include before/after socket details.
+
+Polling can miss connections that open and close between refreshes.
+
+### wait
+
+```sh
+socklens wait --listening --protocol tcp 8080
+socklens wait --until absent --listening --timeout 10s 8080
+socklens wait --pid 12345 --interval 1s --json 8080
+socklens wait --timeout 0 8080
+```
+
+Waits quietly until the required local port matches the condition.
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| --until present or --until absent | present | Succeed when matching sockets exist, or when none exist |
+| --timeout DURATION | 30s | Maximum wait; 0 waits until interrupted |
+| --interval DURATION | 500ms | Wait between polls; minimum 100ms |
+
+Accepts --protocol, --pid, --listening, and --json. Options must precede the port.
+
+The initial poll is immediate. Success prints a confirmation and any matching sockets. With --json, success is one object containing timestamp, condition, port, and sockets. Timeout and errors go to standard error.
+
+Without --listening, sockets in other states also count. Socket presence does not establish application health, and absence does not reserve the port. Ctrl+C cancels the wait.
+
+### terminate
+
+Find the process first:
+
+```sh
+socklens list --listening
+```
+
+Replace 12345 below with an actual PID from the PIDS column.
+
+Preview without signaling or prompting:
+
+```sh
+socklens terminate --pid 12345 --dry-run
+```
+
+On Linux or macOS:
+
+```sh
+socklens terminate --pid 12345
+```
+
+On Windows:
+
+```powershell
+socklens terminate --pid 12345 --force
+```
+
+| Option | Meaning |
+| --- | --- |
+| --pid PID | Required process ID |
+| --dry-run | Display the target without sending a signal or asking for confirmation |
+| --force | Windows only: explicitly permit immediate process termination |
+| -h, --help | Show termination options |
+
+Actual termination requires typing the displayed PID again and pressing Enter. A mismatched or incomplete confirmation cancels the operation.
+
+Linux/macOS send SIGTERM. Windows termination is immediate and can interrupt unsaved work; --force does not bypass PID confirmation. It is rejected on Linux/macOS.
+
+Protected system PIDs, SockLens itself, and processes owned by another user are refused. Identity checks prevent signaling a replacement process. If safe signaling is unavailable, termination is refused. A successful request does not guarantee that the process has finished exiting.
+
+## JSON output
+
+list and inspect produce a JSON array. Each socket includes Protocol, Local, Remote, State, Inode, PIDs, and Processes. Each process entry includes PID and Name. Inode is a platform-specific identity value and may be empty.
+
+watch emits newline-delimited records; wait emits one result on success. JSON strings escape control characters in process names.
+
+## Exit codes
 
 | Code | Meaning |
 | --- | --- |
-| 0 | Condition matched, or help was requested |
-| 1 | Invalid options, collection error, or output error |
-| 2 | Deadline expired |
-| 130 | Interrupted by Ctrl+C or SIGTERM |
+| 0 | Command succeeded or help was displayed |
+| 1 | Invalid input, discovery failure, termination refusal, or output error |
+| 2 | wait timed out |
+| 130 | wait was interrupted |
 
-wait observes local socket tables and does not make a network connection.
-Without --listening, any matching socket state counts, including TCP TIME_WAIT;
-use --listening when waiting for listeners to disappear. A present listener
-does not prove application health, and an absent result does not guarantee a
-subsequent bind will succeed. PID filters depend on best-effort owner visibility.
-Conditions can change immediately after a successful poll.
-
-A shell can chain a subsequent step only after success:
-
-```sh
-./bin/socklens wait --listening --protocol tcp --timeout 30s 8080 && echo "Listener found"
-```
-
-## Termination preview and stable targets (phase 6)
-
-```sh
-./bin/socklens terminate --pid 12345 --dry-run
-./bin/socklens terminate --pid 12345
-```
-
---dry-run displays the observed process name and PID without reading a
-confirmation or sending any signal. It applies the same protected-PID and
-same-user ownership checks. It is a preview, not a guarantee that an actual
-termination will succeed; it does not require or probe pidfd availability.
-
-Normal termination still requires typing the exact PID followed by Enter.
-A stable process handle is acquired before the prompt, identity and ownership
-are checked again before sending SIGTERM, and the handle closes on cancellation
-and every error path. If the confirmation prompt cannot be written, no signal
-is sent. Closing a handle does not terminate its target.
-
-A successful send still does not prove the process exited. No SIGKILL,
-confirmation bypass, or automatic escalation is provided.
-
-## Local release packages (phase 7)
-
-```sh
-make release VERSION=v0.1.0
-cd dist/v0.1.0
-sha256sum -c SHA256SUMS
-```
-
-This produces:
-
-- socklens_v0.1.0_linux_amd64.tar.gz
-- socklens_v0.1.0_linux_arm64.tar.gz
-- SHA256SUMS
-
-Each archive contains the executable, README.md, LICENSE, CHANGELOG.md, and
-PHASES.md in a versioned folder. Native releases package Linux/macOS .tar.gz and
-Windows .zip for amd64/arm64, all built with CGO disabled. Release output also
-contains generated socklens.rb (Homebrew) and socklens.json (Scoop) definitions.
-These definitions reference binary archive URLs and their exact hashes; they
-never compile source or depend on Go.
-
-The packager validates version/commit labels, builds in temporary folders, and
-publishes the completed local package directory in one rename. It refuses to
-overwrite an existing version directory or follow an existing destination
-symlink. A build failure leaves no completed partial release. Concurrent
-packagers use an exclusive version lock; if a process is forcibly killed, inspect
-and remove its leftover dist/VERSION.lock before retrying.
-
-For repeatable packages, pin all metadata and use identical source files and
-the same Go toolchain:
-
-```sh
-make release VERSION=v0.1.0 COMMIT=abcdef123456 BUILD_DATE=2026-10-26T00:00:00Z
-```
-
-COMMIT normally comes from the current local Git commit. A source tree without
-Git history records unknown. VERSION defaults to dev;
-BUILD_DATE defaults to the current UTC time. The version command displays all
-three fields. No release number, Git tag, commit, or GitHub release is created
-automatically.
-
-make help lists the available targets: build, test, check, install, and release.
-The release tool itself uses only the Go standard library. CI tests Go 1.26 and the current stable toolchain, runs a vulnerability check,
-and prepares workflow artifacts. The manual release workflow packages an
-existing version tag and creates an unpublished GitHub release draft. Nothing is uploaded by the local release command.
-
-## Release installation
-
-Download the matching archive and SHA256SUMS
-from [GitHub Releases](https://github.com/Thuya-Myint/socklens/releases).
-The release page includes verification and manual installation instructions.
-
-## License
-
-MIT. See LICENSE.
-
-## Native v0.2.0 platform behavior (pending release)
-
-| Platform | Discovery / inspect / watch / wait | Termination |
-| --- | --- | --- |
-| Linux / WSL2 | TCP/UDP IPv4/IPv6, owners and names | Same-user SIGTERM via pidfd |
-| Windows 10+ | Native TCP/UDP IPv4/IPv6, owning PIDs and names | Explicit --force, typed PID, same-user stable handle |
-| macOS | Native TCP/UDP IPv4/IPv6, best-effort PID/name attribution | SIGTERM with captured PID-version token; refuses if unsupported |
-
-On Windows, --force is required because TerminateProcess is immediate and
-does not provide graceful application shutdown. It can interrupt unsaved work.
-A dry run never terminates or prompts. PIDs are range-checked and system/self
-targets are protected. Windows UDP tables expose bound endpoints without
-connection state, so their state is BOUND; --listening includes those rows.
-
-```powershell
-socklens.exe list --listening
-socklens.exe inspect 8080
-socklens.exe terminate --pid 12345 --dry-run
-socklens.exe terminate --pid 12345 --force
-```
-
-macOS PID attribution is the socket's last recorded PID, not an exhaustive list
-of processes holding the descriptor. Shared sockets and visibility restrictions
-can make attribution incomplete. macOS kernel record layouts are validated;
-unsupported/truncated layouts return an error instead of an empty socket list.
-Safe signaling uses the kernel's audit-token/PID-version check; older or restricted
-systems may refuse termination while read-only commands remain usable.
-
-The JSON Inode field is an opaque platform-specific socket identity: Linux
-inode, macOS PCB/generation token, or empty when Windows supplies no equivalent.
-
-### Native installation after v0.2.0 publication
-
-Mac users will use Homebrew after the tap is updated with the generated formula.
-No Go is required. The shell installer also accepts a published native version:
-
-```sh
-SOCKLENS_VERSION=v0.2.0 sh /tmp/socklens-install.sh
-```
-
-Windows users can download install.ps1 from the repository, review it, then run:
-
-```powershell
-.\install.ps1
-socklens version
-```
-
-The PowerShell installer selects the latest published release and CPU, verifies
-SHA-256, and installs into the current user's local application directory.
-It updates user PATH unless -NoPathUpdate is supplied. If the latest release
-has no Windows asset, installation fails without replacing an existing binary.
-Scoop users can install the release's generated manifest after publication:
-
-```powershell
-scoop install https://github.com/Thuya-Myint/socklens/releases/latest/download/socklens.json
-```
-
-All normal user paths install finished executables; Go is only for contributors.
+Stopping watch with Ctrl+C exits successfully.
