@@ -55,6 +55,8 @@ The installer does not change shell startup files. Add your installation directo
 | help | Show the command overview |
 | version | Show the installed version |
 | check | Check whether socket discovery works |
+| update-check | Check GitHub for a newer stable release |
+| updates | Enable, disable, or view daily update notices |
 | list | List local TCP/UDP sockets |
 | inspect | Inspect a local port |
 | watch | Monitor sockets or changes |
@@ -79,9 +81,11 @@ socklens inspect --help
 socklens watch --help
 socklens wait --help
 socklens terminate --help
+socklens update-check --help
+socklens updates --help
 ```
 
-These five commands also accept -h.
+These seven commands also accept -h.
 
 ### version
 
@@ -99,6 +103,64 @@ socklens check
 ```
 
 Checks socket discovery and reports the number of observed sockets. Takes no options. Process names and ownership may be unavailable because of permissions.
+
+### update-check
+
+```sh
+socklens update-check
+socklens update-check --json
+socklens update-check --timeout 5s
+```
+
+Checks the latest published stable GitHub release. It reports whether an update
+is available, the installed version, and the release link. It does not install
+updates. Development builds without a comparable release version are skipped
+by daily checks; the explicit command reports that the version cannot be compared.
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| --json | Off | Return one JSON object with current, latest, update_available, release_url, and status |
+| --timeout DURATION | 3s | Network deadline, from 100ms to 30s |
+| -h, --help | — | Show update-check options |
+
+Manual checks contact GitHub each time. Offline, timeout, and rate-limit errors
+return status 1. An available update still returns status 0; use update_available
+in JSON for scripts. No socket or process information is sent.
+
+For GitHub notifications, open the [repository](https://github.com/Thuya-Myint/socklens),
+select Watch, then Custom, choose Releases, and save. Each user controls their
+own GitHub notification and email preferences.
+
+### updates
+
+Daily CLI notices are off by default.
+
+```sh
+socklens updates --enable
+socklens updates --status
+socklens updates --disable
+```
+
+| Option | Meaning |
+| --- | --- |
+| --enable | Opt into daily background update checks and cached notices |
+| --disable | Stop automatic checks and notices |
+| --status | Show the current setting; also the default when no option is supplied |
+| -h, --help | Show preference options |
+
+Choose only one of --enable, --disable, and --status. Preferences apply to the
+current user across terminals.
+
+When enabled, interactive list, inspect, check, watch, or wait runs can schedule
+a background check at most once every 24 hours. A cached update notice appears
+on a subsequent interactive run, at most once per version per day. The network
+request runs separately so it cannot delay the port command; Windows workers
+do not open a console window.
+
+Normal commands remain usable if GitHub is offline or the check fails. No
+automatic notice or background check runs for JSON output, redirected output,
+help, version, or termination. Notices use standard error and never alter socket
+JSON. Nothing is installed or replaced automatically.
 
 ### Shared discovery options
 
@@ -246,7 +308,7 @@ watch emits newline-delimited records; wait emits one result on success. JSON st
 | Code | Meaning |
 | --- | --- |
 | 0 | Command succeeded or help was displayed |
-| 1 | Invalid input, discovery failure, termination refusal, or output error |
+| 1 | Invalid input, discovery/update failure, termination refusal, settings error, or output error |
 | 2 | wait timed out |
 | 130 | wait was interrupted |
 

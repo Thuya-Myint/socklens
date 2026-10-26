@@ -15,3 +15,9 @@ supported, patched Go toolchain.
 
 Private vulnerability reporting must be enabled by the repository owner; this
 document does not imply that the repository setting is already enabled.
+
+Update checks read the public GitHub latest-release endpoint. Automatic checks
+are disabled unless the user opts in; explicit update-check is user-initiated.
+Requests include the installed version in User-Agent and do not include socket
+or process data, credentials, or usage records. Update responses are bounded and
+validated, redirects are refused, and no release code is downloaded or executed.

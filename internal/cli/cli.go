@@ -14,6 +14,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/Thuya-Myint/socklens/internal/platform"
+	"github.com/Thuya-Myint/socklens/internal/update"
 )
 
 const help = `SockLens — inspect local TCP/UDP ports
@@ -22,6 +23,8 @@ Usage:
   socklens help
   socklens version
   socklens check
+  socklens update-check [--json] [--timeout 3s]
+  socklens updates [--enable | --disable | --status]
   socklens list [--port PORT] [--protocol tcp|udp] [--pid PID] [--listening] [--json]
   socklens inspect [--protocol tcp|udp] [--pid PID] [--listening] [--json] PORT
   socklens watch [--interval 2s] [--count N] [--changes] [list filters] [--json]
@@ -87,6 +90,14 @@ func RunContext(ctx context.Context, args []string, in io.Reader, out, errOut io
 		return watchCommand(ctx, args[1:], out, errOut)
 	case "wait":
 		return waitCommand(ctx, args[1:], out, errOut)
+	case "update-check":
+		return updateCheckCommand(ctx, args[1:], out, errOut, version, update.DefaultChecker())
+	case "updates":
+		service, err := update.DefaultService()
+		if err != nil {
+			return fail(errOut, err)
+		}
+		return updatesCommand(args[1:], out, errOut, service)
 	case "terminate":
 		return terminate(args[1:], in, out, errOut)
 	default:

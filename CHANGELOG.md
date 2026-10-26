@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Version output contains only the version number.
+- Explicit update-check with stable semantic version comparison and JSON.
+- Opt-in daily background checks and cached update notices.
+- Update preferences and GitHub release-notification instructions.
+- Cross-platform tests for Windows/Linux/macOS update behavior.
+
 ## v0.2.0 — 2026-10-27
 
 - Native Windows IPv4/IPv6 TCP/UDP tables and process-owner/name discovery.
