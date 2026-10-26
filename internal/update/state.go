@@ -45,7 +45,7 @@ func (s *Service) now() time.Time {
 	return time.Now().UTC()
 }
 func (s *Service) Read() (State, error) {
-	file, err := os.Open(s.Path)
+	file, err := openStateFile(s.Path)
 	if os.IsNotExist(err) {
 		return State{}, nil
 	}
@@ -77,6 +77,9 @@ func (s *Service) lock() (func(), error) {
 	path := s.Path + ".lock"
 	if err := os.Mkdir(path, 0700); err != nil {
 		if !os.IsExist(err) {
+			if lockContention(err) {
+				return nil, ErrBusy
+			}
 			return nil, err
 		}
 		if info, e := os.Stat(path); e == nil && time.Since(info.ModTime()) > time.Minute {
@@ -112,7 +115,7 @@ func (s *Service) save(state State) error {
 	if err := file.Close(); err != nil {
 		return err
 	}
-	return os.Rename(name, s.Path)
+	return replaceStateFile(name, s.Path)
 }
 func (s *Service) SetEnabled(enabled bool) error {
 	unlock, err := s.lock()
