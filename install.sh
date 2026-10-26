@@ -4,7 +4,7 @@ set -eu
 
 fail() { printf '%s\n' "socklens installer: $*" >&2; exit 1; }
 
-version=${SOCKLENS_VERSION:-v0.2.0}
+version=${SOCKLENS_VERSION:-v0.3.0}
 case "$version" in v[0-9]*) ;; *) fail "invalid version: $version" ;; esac
 case "$version" in *[!A-Za-z0-9._+-]*) fail "invalid version: $version" ;; esac
 case "$(uname -s)" in

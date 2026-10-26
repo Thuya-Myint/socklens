@@ -23,7 +23,7 @@ Homebrew selects the binary for Intel/AMD 64-bit or ARM64, including Apple Silic
 With Scoop installed, run in PowerShell:
 
 ```powershell
-scoop install https://github.com/Thuya-Myint/socklens/releases/download/v0.2.0/socklens.json
+scoop install https://github.com/Thuya-Myint/socklens/releases/download/v0.3.0/socklens.json
 socklens version
 ```
 
@@ -43,10 +43,38 @@ The installer detects your CPU, verifies the download checksum, and installs int
 To choose another installation directory or published version:
 
 ```sh
-SOCKLENS_INSTALL_DIR="$HOME/bin" SOCKLENS_VERSION=v0.2.0 sh /tmp/socklens-install.sh
+SOCKLENS_INSTALL_DIR="$HOME/bin" SOCKLENS_VERSION=v0.3.0 sh /tmp/socklens-install.sh
 ```
 
 The installer does not change shell startup files. Add your installation directory to PATH if you want to run socklens from any terminal.
+
+### Upgrade an existing installation
+
+With Homebrew:
+
+```sh
+brew update
+brew upgrade Thuya-Myint/socklens/socklens
+```
+
+With Scoop, the release manifest is version-pinned. To replace an older release:
+
+```powershell
+scoop uninstall socklens
+scoop install https://github.com/Thuya-Myint/socklens/releases/download/v0.3.0/socklens.json
+```
+
+On Linux/WSL2, rerun the binary installer commands above to replace the installed
+binary. Download the installer again so it selects the current release.
+
+Verify the upgrade:
+
+```sh
+socklens version
+socklens update-check
+```
+
+The update-check and updates commands require v0.3.0 or newer.
 
 ## Commands
 
