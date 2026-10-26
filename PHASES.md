@@ -247,3 +247,34 @@ Windows/macOS target compilations; workflow lint.
 Pending: remote native hardware CI, especially Intel/Apple Silicon macOS.
 Owner authorized pushing source after local tests. No new public release or
 replacement of v0.1.0 assets is authorized by that source-push instruction.
+
+## Native verification and prepared v0.2.0 distribution promotion
+
+Release source commit: 6f6d349bb8fd9f8e41e1e6da674e2b913f2f147d.
+CI https://github.com/Thuya-Myint/socklens/actions/runs/40340272318 passed all jobs.
+
+The initial audit-token signal-zero probe was removed: macOS rejected zero
+although actual confirmed SIGTERM worked. Actual dedicated-child termination
+passed on both Intel macOS 15 and current Apple Silicon macOS (not skipped).
+Socket/PID discovery, dry runs, closed/protected targets, Windows x64/ARM64
+native tests, Linux ARM64, Homebrew Linux install, vulnerabilities, and packaging
+also passed.
+
+Prepared six v0.2.0 standalone archives plus SHA256SUMS and Homebrew/Scoop
+metadata from the tested release source. All checksums verified. Distribution
+promotion updates the public Homebrew formula/default shell-installer version
+only after these assets exist. Added Mac Homebrew installation checks to this
+promotion. Installer fixtures explicitly select their frozen v0.1.0 fixture
+rather than depending on the production default.
+
+This promotion is prepared locally and must not be pushed before the v0.2.0
+assets are published. Publication still requires explicit owner approval.
+
+## v0.2.0 publication authorization
+
+Owner explicitly approved publishing v0.2.0 and activating Homebrew/Scoop.
+Release source 47c0a5b46b06f938807cc725a9a0678d53b475a5 contains the user-only
+README and unchanged native code from the passed native CI source.
+The refreshed archives include that README; their generated Homebrew formula
+and Scoop manifest match their exact SHA256 values. Installer activation is
+pushed only after public assets exist. Mac Homebrew installation is gated in CI.

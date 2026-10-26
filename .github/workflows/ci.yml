@@ -83,3 +83,11 @@ jobs:
       - name: Test standalone Windows installer without Go on PATH
         if: runner.os == 'Windows'
         run: ./tests/install_windows_test.ps1
+
+      - name: Test native Mac Homebrew binary installation
+        if: runner.os == 'macOS'
+        run: |
+          brew tap socklens/native "$GITHUB_WORKSPACE"
+          brew install socklens/native/socklens
+          brew test socklens/native/socklens
+          test -z "$(brew deps --include-build socklens/native/socklens)"

@@ -17,7 +17,7 @@ the executable, license, and documentation.
 ## Install
 
 Linux/macOS users can use the binary installer from the main repository with
-SOCKLENS_VERSION=v0.2.0. After the Homebrew tap is promoted to this release:
+SOCKLENS_VERSION=v0.2.0. Install through the Homebrew tap:
 
 ```sh
 brew tap Thuya-Myint/socklens https://github.com/Thuya-Myint/socklens
@@ -49,6 +49,8 @@ holder of a shared socket. Safe macOS signaling depends on kernel support for
 audit-token/PID-version checks; unsupported/restricted systems refuse it.
 Socket snapshots and polling can miss transient changes.
 
-Native CI results must be reviewed before this release is published. ARM64 and
-Intel results are recorded in the CI run associated with the release commit.
+Native socket/process tests passed on Intel/Apple Silicon macOS, x64/ARM64
+Windows, and ARM64 Linux. Linux race tests, vulnerability checks, package
+validation, and Homebrew installation checks also passed. See the CI run for
+release source commit 6f6d349.
 Licensed under MIT.

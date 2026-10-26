@@ -97,7 +97,7 @@ exec "$TEST_CP" "$TEST_DOWNLOADS/${url##*/}" "$destination"
 			f.env = append(f.env, entry)
 		}
 	}
-	f.env = append(f.env, "PATH="+f.tools, "TEST_OS=Linux", "TEST_ARCH=x86_64", "TEST_CP="+cp, "TEST_DOWNLOADS="+f.downloads, "SOCKLENS_INSTALL_DIR="+f.destination)
+	f.env = append(f.env, "PATH="+f.tools, "TEST_OS=Linux", "TEST_ARCH=x86_64", "TEST_CP="+cp, "TEST_DOWNLOADS="+f.downloads, "SOCKLENS_INSTALL_DIR="+f.destination, "SOCKLENS_VERSION=v0.1.0")
 	return f
 }
 

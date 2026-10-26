@@ -1,6 +1,6 @@
 # Security policy
 
-The latest v0.1.x release is the supported release line.
+The latest v0.2.x release is the supported release line.
 
 Please report security-sensitive findings through GitHub's private vulnerability
 reporting feature when it is enabled for this repository. If the Security tab

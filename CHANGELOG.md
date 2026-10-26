@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.2.0 — unreleased
+## v0.2.0 — 2026-10-27
 
 - Native Windows IPv4/IPv6 TCP/UDP tables and process-owner/name discovery.
 - Same-user Windows process handles with explicit --force for immediate termination.
