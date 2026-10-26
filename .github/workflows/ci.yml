@@ -33,7 +33,7 @@ jobs:
           cache: false
       - run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
   package:
-    needs: [test, security]
+    needs: [test, security, installation]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -47,3 +47,19 @@ jobs:
         with:
           name: socklens-linux-ci
           path: dist/ci/
+
+  installation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: Homebrew/actions/setup-homebrew@d482da0e602890d3160aade42e72c8556103bf04
+      - name: Install the prebuilt binary through Homebrew
+        run: |
+          brew tap socklens/ci "$GITHUB_WORKSPACE"
+          brew install socklens/ci/socklens
+          brew test socklens/ci/socklens
+          test -z "$(brew deps --include-build socklens/ci/socklens)"
+      - name: Install the binary without Go on PATH
+        run: |
+          env PATH=/usr/bin:/bin SOCKLENS_INSTALL_DIR="$RUNNER_TEMP/socklens-no-go" sh ./install.sh
+          "$RUNNER_TEMP/socklens-no-go/socklens" version

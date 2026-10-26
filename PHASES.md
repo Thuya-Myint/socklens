@@ -194,3 +194,28 @@ vulnerabilities found). Existing socket lifecycle and pidfd safety tests pass.
 Publication status: prepared locally. Owner approval is required before pushing
 main or v0.1.0 and publishing a GitHub release. Remote CI is pending that push.
 ARM64 is compile-tested, not runtime-tested. No release has been published.
+
+## Consumer installation before native platform expansion
+
+Priority changed by the owner: normal users must install a binary without
+cloning source or installing Go. Native Windows/macOS work is paused until
+these distribution paths are shipped and verified.
+
+Added install.sh with OS/CPU selection, published asset download, SHA-256
+validation, safe executable-only extraction, atomic user-local installation,
+and clear unsupported-platform errors. Added Formula/socklens.rb as a binary-only
+Homebrew formula using existing v0.1.0 assets and pinned checksums. README and
+release notes lead with consumer installation; Make/Go builds are contributor
+instructions. Existing published archives remain immutable.
+
+Validation passed: installer tests with no Go/Git/compiler on PATH, checksum
+failure preserving an existing installation, invalid platform/architecture/
+version rejection, symlink-destination refusal, live GitHub download/install,
+make check/test, and actionlint. Homebrew loaded formula metadata, showed zero
+dependencies, and fetched/verified the release. Full local Homebrew installation
+was refused by Homebrew's inherited-sandbox guard; no guard was disabled.
+A native GitHub CI job now gates Homebrew installation and formula tests.
+
+Pending: owner approval to push these distribution changes and update public
+release installation notes, then remote CI verification. Native platform
+implementation has not changed the published v0.1.0 release.

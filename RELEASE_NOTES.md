@@ -12,22 +12,41 @@ and WSL2.
 - Preview termination or send confirmed, same-user SIGTERM through a stable
   process handle.
 
-## Install
+## Install — no Go required
 
-Download the Linux archive matching your architecture and SHA256SUMS from
-this release, then verify and extract it:
+SockLens installs as a ready-to-run binary. You do not need Go, a compiler,
+or a source checkout.
+
+### Homebrew on Linux / WSL2
+
+```sh
+brew tap Thuya-Myint/socklens https://github.com/Thuya-Myint/socklens
+brew install Thuya-Myint/socklens/socklens
+```
+
+### Binary installer on Linux / WSL2
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Thuya-Myint/socklens/main/install.sh -o /tmp/socklens-install.sh
+sh /tmp/socklens-install.sh
+export PATH="$HOME/.local/bin:$PATH"
+socklens version
+```
+
+The installer selects amd64/arm64 and verifies SHA-256 before installing.
+
+### Manual download
+
+Download the archive matching your Linux architecture and SHA256SUMS:
 
 ```sh
 sha256sum -c SHA256SUMS --ignore-missing
 tar -xzf socklens_v0.1.0_linux_amd64.tar.gz
 install -Dm755 socklens_v0.1.0_linux_amd64/socklens "$HOME/.local/bin/socklens"
-export PATH="$HOME/.local/bin:$PATH"
-socklens version
-socklens check
 ```
 
-For ARM64, replace amd64 with arm64. No Go installation is needed to run the
-downloaded binary.
+For ARM64, replace amd64 with arm64. macOS/native Windows packages are not yet
+released; Linux binaries cannot run directly on those operating systems.
 
 ## Supported scope
 

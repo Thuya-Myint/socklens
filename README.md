@@ -6,43 +6,65 @@ MIT licensed. See CHANGELOG.md for release history and SECURITY.md for reporting
 
 A Go standard-library-only CLI for inspecting TCP/UDP ports on Linux and WSL2.
 
-## Install and build
+## Install (no Go or source checkout required)
 
-Build with a supported, patched Go toolchain (Go 1.26 or newer). The Make targets also require GNU Make and
-standard Linux build utilities. Tests with the race detector require a C
-compiler; normal builds and release binaries disable CGO. Running the finished
-binary does not require Go or Make.
+The published release contains ready-to-run executables. Choose one method:
 
-From the project folder:
+### Homebrew on Linux / WSL2
 
 ```sh
-make build
-./bin/socklens help
-make check
-make test
-make install
+brew tap Thuya-Myint/socklens https://github.com/Thuya-Myint/socklens
+brew install Thuya-Myint/socklens/socklens
+socklens version
+```
+
+This tap installs the prebuilt release binary. It does not install Go or compile
+SockLens. The explicit tap URL uses this repository; no separate tap repository
+is required. Update with brew update and brew upgrade Thuya-Myint/socklens/socklens.
+
+### Binary installer on Linux / WSL2
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Thuya-Myint/socklens/main/install.sh -o /tmp/socklens-install.sh
+sh /tmp/socklens-install.sh
 export PATH="$HOME/.local/bin:$PATH"
 socklens version
 ```
 
-make install builds then installs into ~/.local/bin by default. PREFIX, BINDIR,
-and DESTDIR can override the installation location. It replaces an existing
-socklens binary at that location. The export above updates the current shell;
-make sure your shell's startup profile includes ~/.local/bin for future shells.
-You can also run ~/.local/bin/socklens directly.
+The installer detects amd64/arm64, downloads v0.1.0 from GitHub Releases,
+verifies SHA-256, and installs into ~/.local/bin. It needs no Go, Git checkout,
+sudo, or compilation. Set SOCKLENS_INSTALL_DIR to choose another destination;
+SOCKLENS_VERSION selects another published version. It does not edit shell
+startup files. Uninstall by removing the installed socklens executable.
 
-If Go is not on PATH, use an existing Go toolchain explicitly:
+Native macOS and Windows binaries are not released yet. On Windows, use WSL2.
+Homebrew on a Mac cannot run the Linux release; native platform support follows
+this installation work.
+
+### Manual download
+
+Download the archive for your Linux CPU and SHA256SUMS from
+[GitHub Releases](https://github.com/Thuya-Myint/socklens/releases/tag/v0.1.0).
+Verify it with sha256sum -c SHA256SUMS --ignore-missing, extract it, and copy
+the socklens executable into a directory on PATH. No Go installation is needed.
+
+## Build from source (contributors only)
+
+Building SockLens is optional for users. Contributors need a supported,
+patched Go toolchain (Go 1.26+), GNU Make, and a C compiler for race tests.
 
 ```sh
-make build GO=/path/to/go/bin/go
-make check GO=/path/to/go/bin/go GOFMT=/path/to/go/bin/gofmt
+make build
+make check
+make test
+make install
 ```
 
-Without Make:
+make install builds source and installs into ~/.local/bin; it is a development
+target, not the normal user install path. PREFIX, BINDIR, and DESTDIR can
+override its destination. If Go is outside PATH, set GO=/path/to/go/bin/go
+and GOFMT=/path/to/go/bin/gofmt when invoking Make.
 
-```sh
-go build -trimpath -o bin/socklens ./cmd/socklens
-```
 
 No third-party Go modules or runtime tools are required.
 
@@ -342,10 +364,9 @@ existing version tag and creates an unpublished GitHub release draft. Nothing is
 
 ## Release installation
 
-When v0.1.0 has been published, download the matching archive and SHA256SUMS
+Download the matching archive and SHA256SUMS
 from [GitHub Releases](https://github.com/Thuya-Myint/socklens/releases).
-Follow the release's installation instructions to verify and install the binary. Publishing is a
-separate maintainer action; preparing local archives does not publish them.
+The release page includes verification and manual installation instructions.
 
 ## License
 

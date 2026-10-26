@@ -21,6 +21,7 @@ test:
 	$(GO) test -race ./...
 
 check:
+	sh -n install.sh
 	@files="$$($(GOFMT) -l cmd internal tools)" && test -z "$$files"
 	$(GO) vet ./...
 

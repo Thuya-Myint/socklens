@@ -19,3 +19,12 @@
 Publishing a release is separate from local installation. The latest v0.1.x
 line is supported. Enable GitHub private vulnerability reporting in repository
 settings if desired; the source files do not configure that setting.
+
+## Consumer distribution updates
+
+Keep Formula/socklens.rb URLs/checksums and install.sh's default version aligned
+with the intended published release. Verify the Homebrew formula declares no Go
+build/runtime dependency and installs bin/socklens from an archive. Keep the
+README's binary installation paths before contributor build instructions.
+The installation CI job tests Homebrew and the shell installer. Never replace
+previously published archives merely to update installation instructions.
