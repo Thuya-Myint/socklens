@@ -53,7 +53,7 @@ The installer does not change shell startup files. Add your installation directo
 | Command | Purpose |
 | --- | --- |
 | help | Show the command overview |
-| version | Show version and build information |
+| version | Show the installed version |
 | check | Check whether socket discovery works |
 | list | List local TCP/UDP sockets |
 | inspect | Inspect a local port |
@@ -90,7 +90,7 @@ socklens version
 socklens --version
 ```
 
-Shows the installed version, commit, and build date. Takes no additional arguments.
+Shows only the installed version. Takes no additional arguments.
 
 ### check
 

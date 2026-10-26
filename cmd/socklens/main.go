@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -17,7 +16,7 @@ var (
 )
 
 func versionInfo() string {
-	return fmt.Sprintf("%s (commit %s, built %s)", version, commit, buildDate)
+	return version
 }
 
 func main() { os.Exit(run()) }
