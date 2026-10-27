@@ -1,87 +1,105 @@
-# SockLens v0.3.0
+# SockLens v0.4.0
 
-Check for newer releases directly from SockLens, with optional daily update notices.
-Prebuilt binaries support Linux, macOS, and Windows on amd64 and arm64. Go and a
-source checkout are not required.
+Default terminal colors and responsive socket output on Windows, macOS, and Linux.
+All downloads are standalone binaries; Go and a source checkout are not required.
 
-## New commands
+## Clearer terminal output
+
+- Grouped help, labeled success/error/warning messages, and readable empty results.
+- Aligned socket tables with socket, listening/bound, and connected counts.
+- Readable process names with safe escaping for unusual or control characters.
+- Timestamped watch events with counted added, removed, and updated sections.
+- Clearer termination confirmation, dry-run output, and missing-process guidance.
+
+## Responsive layouts and colors
+
+Wide terminals show a table. Narrow terminals show stacked socket records with
+wrapped values. Full endpoints, PIDs, and process names remain visible. Watch
+checks the width again for each output and adapts after a terminal resize.
+
+Colors are on by default in supported terminals:
 
 ```sh
-socklens update-check
-socklens update-check --json
-socklens update-check --timeout 5s
-socklens updates --enable
-socklens updates --status
-socklens updates --disable
+socklens list --listening
+socklens --color auto inspect 8080
+socklens list --color never
+socklens list --color always
 ```
 
-`update-check` checks the latest stable GitHub release and reports a release link.
-It does not install updates. `--timeout` accepts 100ms to 30s; the default is 3s.
-An available update returns exit code 0; network and rate-limit failures return 1.
+The global --color option accepts auto (default), always, and never. It may appear
+before the command or among its options, before a final PORT argument. NO_COLOR
+and TERM=dumb disable automatic colors; --color always overrides those settings.
+Windows enables native virtual-terminal output when supported.
 
-Daily notices are disabled by default. When enabled, eligible interactive commands
-can schedule a background check at most once per 24 hours. Cached notices use
-standard error and stay out of JSON output. Socket and process information is
-never sent. Users can also subscribe to Releases through GitHub's Watch settings.
+Redirected text stays plain by default. JSON output and JSON diagnostics never
+contain colors, even with --color always. Version output stays plain. Existing
+JSON schemas, exit codes, and safe process-termination protections are unchanged.
 
-`socklens version` now prints only the version number, without commit/build details.
-Windows settings updates support concurrent readers and atomic file replacement.
+## Upgrade on macOS / Linux with Homebrew
 
-## Install or upgrade
+Once the v0.4.0 tap formula is promoted:
 
-### Homebrew — macOS and Linux
+```sh
+brew update
+brew upgrade Thuya-Myint/socklens/socklens
+socklens version
+socklens update-check
+```
 
-For a new installation:
+New installations can tap and install the ready-to-run binary:
 
 ```sh
 brew tap Thuya-Myint/socklens https://github.com/Thuya-Myint/socklens
 brew install Thuya-Myint/socklens/socklens
 ```
 
-For an existing installation, after the tap has been updated for this release:
+## Windows
 
-```sh
-brew update
-brew upgrade Thuya-Myint/socklens/socklens
-```
-
-### Scoop — Windows
+New Scoop installation:
 
 ```powershell
-scoop install https://github.com/Thuya-Myint/socklens/releases/download/v0.3.0/socklens.json
+scoop install https://github.com/Thuya-Myint/socklens/releases/download/v0.4.0/socklens.json
 ```
 
-This is a version-pinned manifest. If an older SockLens is already installed with
-Scoop, uninstall it with `scoop uninstall socklens`, then run the installation
-command above. Other Windows users can run `install.ps1` from the repository;
-it installs the latest release and verifies its checksum.
+The direct Scoop manifest is version-pinned. To replace an older Scoop release,
+run `scoop uninstall socklens` before the installation command above. Users of the
+standalone PowerShell installer can rerun install.ps1 from the repository to get
+the latest published release with checksum verification.
 
-### Linux / WSL2 — binary installer
-
-Run these commands to install or replace an existing binary:
+## Linux / WSL2 binary installer
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/Thuya-Myint/socklens/main/install.sh -o /tmp/socklens-install.sh
-SOCKLENS_VERSION=v0.3.0 sh /tmp/socklens-install.sh
+SOCKLENS_VERSION=v0.4.0 sh /tmp/socklens-install.sh
 export PATH="$HOME/.local/bin:$PATH"
+socklens version
 ```
 
-Verify the upgrade:
+## Update checks and automatic notices
 
 ```sh
-socklens version
 socklens update-check
+socklens update-check --timeout 10s
+socklens updates --enable
+socklens updates --status
 ```
 
-## Downloads and verification
+Update checks compare against published stable releases. Pushing source alone
+does not create a new downloadable version. Automatic notices are opt-in and
+check at most once every 24 hours during eligible interactive commands. The
+background result is cached; a notice can appear on a later command invocation.
+Manual update-check requests a fresh result immediately. Notices do not install
+updates; use your package manager or the binary installer to upgrade.
 
-Choose amd64 for Intel/AMD 64-bit or arm64 for ARM64/Apple Silicon. Linux and macOS
-use tar.gz archives; Windows uses ZIP. Verify archive hashes with SHA256SUMS.
-The release also includes a binary-only Homebrew formula and Scoop manifest.
+## Downloads and validation
 
-All existing list, inspect, watch, wait, check, help, and confirmed termination
-commands remain available. See README.md for every command and option.
+Six archives cover Windows, macOS, and Linux on amd64 and arm64. Windows uses ZIP;
+macOS and Linux use tar.gz. SHA256SUMS, a Homebrew formula, and a Scoop manifest
+are included. See README.md for every CLI command and option.
 
-Validation includes native x64/ARM64 Windows, Intel/Apple Silicon macOS, ARM64 Linux,
-Linux race tests, vulnerability checks, package checks, and installer checks.
+Native tests passed on Intel/Apple Silicon macOS, x64/ARM64 Windows, and ARM64
+Linux, including native Mac terminal resize/color checks. Linux race tests,
+vulnerability checks, installation tests, and archive/checksum checks passed.
+Runtime source CI: https://github.com/Thuya-Myint/socklens/actions/runs/40453682724
+
 Licensed under MIT.

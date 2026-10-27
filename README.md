@@ -23,7 +23,7 @@ Homebrew selects the binary for Intel/AMD 64-bit or ARM64, including Apple Silic
 With Scoop installed, run in PowerShell:
 
 ```powershell
-scoop install https://github.com/Thuya-Myint/socklens/releases/download/v0.3.0/socklens.json
+scoop install https://github.com/Thuya-Myint/socklens/releases/download/v0.4.0/socklens.json
 socklens version
 ```
 
@@ -43,7 +43,7 @@ The installer detects your CPU, verifies the download checksum, and installs int
 To choose another installation directory or published version:
 
 ```sh
-SOCKLENS_INSTALL_DIR="$HOME/bin" SOCKLENS_VERSION=v0.3.0 sh /tmp/socklens-install.sh
+SOCKLENS_INSTALL_DIR="$HOME/bin" SOCKLENS_VERSION=v0.4.0 sh /tmp/socklens-install.sh
 ```
 
 The installer does not change shell startup files. Add your installation directory to PATH if you want to run socklens from any terminal.
@@ -61,7 +61,7 @@ With Scoop, the release manifest is version-pinned. To replace an older release:
 
 ```powershell
 scoop uninstall socklens
-scoop install https://github.com/Thuya-Myint/socklens/releases/download/v0.3.0/socklens.json
+scoop install https://github.com/Thuya-Myint/socklens/releases/download/v0.4.0/socklens.json
 ```
 
 On Linux/WSL2, rerun the binary installer commands above to replace the installed
@@ -181,7 +181,7 @@ socklens update-check --json
 socklens update-check --timeout 5s
 ```
 
-Checks the latest published stable GitHub release. It reports whether an update
+Checks the latest published stable GitHub release. Source pushes and unpublished previews do not create a newer installable release. It reports whether an update
 is available, the installed version, and the release link. It does not install
 updates. Development builds without a comparable release version are skipped
 by daily checks; the explicit command reports that the version cannot be compared.

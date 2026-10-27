@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.4.0 — 2026-10-27
 
 - Automatic terminal colors with --color auto|always|never and NO_COLOR support.
 - Native Windows virtual-terminal support; plain output for redirected streams.
