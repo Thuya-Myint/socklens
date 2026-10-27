@@ -11,11 +11,12 @@ import (
 )
 
 func TestTerminalWidthTracksResizeWithAndWithoutColor(t *testing.T) {
-	tty, err := os.OpenFile("/dev/ptmx", os.O_RDWR, 0)
+	master, err := os.OpenFile("/dev/ptmx", os.O_RDWR, 0)
 	if err != nil {
 		t.Skipf("pseudo-terminal unavailable: %v", err)
 	}
-	defer tty.Close()
+	t.Cleanup(func() { master.Close() })
+	tty := testTerminalSide(t, master)
 	t.Setenv("NO_COLOR", "")
 	t.Setenv("TERM", "xterm")
 	for _, columns := range []uint16{40, 120, 80} {

@@ -32,3 +32,5 @@ func TestAutomaticColorAndEnvironmentOnTerminal(t *testing.T) {
 		t.Fatal("TERM=dumb ignored")
 	}
 }
+
+func testTerminalSide(t *testing.T, master *os.File) *os.File { return master }
