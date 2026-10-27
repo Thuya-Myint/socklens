@@ -51,6 +51,19 @@ The installer does not change shell startup files. Add your installation directo
 
 ### Upgrade an existing installation
 
+From v0.5.0 onward, upgrade with one command:
+
+```sh
+socklens update
+```
+
+It checks for a newer stable release and uses Homebrew, Scoop, or a verified
+standalone binary download to upgrade the current installation. See [update](#update)
+for preview, timeout, and Windows progress options.
+
+**v0.4.0 and older need one initial upgrade using the commands below** to receive
+this new command. An already installed binary cannot gain a command until it is upgraded.
+
 With Homebrew:
 
 ```sh
@@ -134,6 +147,7 @@ also remains plain. Text layouts are intended for people; use --json for scripts
 | version | Show the installed version |
 | check | Check whether socket discovery works |
 | update-check | Check GitHub for a newer stable release |
+| update | Check and install a newer stable release |
 | updates | Enable, disable, or view daily update notices |
 | list | List local TCP/UDP sockets |
 | inspect | Inspect a local port |
@@ -160,10 +174,11 @@ socklens watch --help
 socklens wait --help
 socklens terminate --help
 socklens update-check --help
+socklens update --help
 socklens updates --help
 ```
 
-These seven commands also accept -h.
+These eight commands also accept -h.
 
 ### version
 
@@ -208,6 +223,63 @@ in JSON for scripts. No socket or process information is sent.
 For GitHub notifications, open the [repository](https://github.com/Thuya-Myint/socklens),
 select Watch, then Custom, choose Releases, and save. Each user controls their
 own GitHub notification and email preferences.
+
+### update
+
+Requires v0.5.0 or newer; older installations must upgrade once using their installer.
+
+```sh
+socklens update
+socklens update --dry-run
+socklens update --timeout 10m
+```
+
+Checks GitHub for the newest stable release and upgrades only when a newer
+version is available. A current installation is left as it is.
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| --dry-run | Off | Check availability and show the update method without installing |
+| --status | Off | Show the latest Windows background update result without contacting GitHub |
+| --timeout DURATION | 5m | Total update deadline, from 1s to 30m |
+| -h, --help | — | Show update options |
+
+Use --status alone. --dry-run can be combined with --timeout.
+
+- **Homebrew:** refreshes Homebrew and upgrades the formula identified by the
+  installation receipt, then checks the installed version.
+- **Scoop:** refreshes Scoop and its buckets, upgrades SockLens, and verifies the
+  version. Older direct-manifest installations need the one-time bucket migration
+  described above. If a release is newer than the bucket, the command asks you to
+  retry after the installer has been published.
+- **Standalone binaries:** downloads the matching macOS, Windows, or Linux
+  amd64/arm64 release over HTTPS, checks SHA-256, architecture, and version, then
+  replaces the executable. A failed post-install check attempts to restore the
+  previous executable. The install directory must be writable.
+
+On macOS and Linux, wait for the success message. On Windows, the command starts
+a background installer so the running executable can exit before replacement.
+It prints the log location; check completion with:
+
+```powershell
+socklens update --status
+socklens version
+```
+
+On Windows, an initial successful exit means the installer started; --status
+reports whether it completed or failed. Close other SockLens processes before
+updating if Windows reports that the executable is in use.
+
+No administrator prompt, sudo, shell-profile change, or automatic installation
+is added. Package-manager policies and normal file permissions still apply.
+Unknown package-manager locations are refused rather than overwritten. Checksums
+come from the same GitHub release as the archive; they detect download corruption
+but are not a separate publisher signature.
+
+An interrupted standalone update can leave a reported .update-lock directory.
+Before removing that empty lock and retrying, confirm no updater is still running.
+If a Windows background installer is stopped unexpectedly, retain its log and
+use the original installer to recover the installation.
 
 ### updates
 
@@ -388,6 +460,6 @@ watch emits newline-delimited records; wait emits one result on success. JSON st
 | 0 | Command succeeded or help was displayed |
 | 1 | Invalid input, discovery/update failure, termination refusal, settings error, or output error |
 | 2 | wait timed out |
-| 130 | wait was interrupted |
+| 130 | wait or a foreground update was interrupted |
 
 Stopping watch with Ctrl+C exits successfully.

@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"runtime"
 	"strings"
 	"time"
 )
@@ -102,12 +101,8 @@ func (c Checker) Check(ctx context.Context, current string) (Result, error) {
 }
 func Notice(result Result) string {
 	message := fmt.Sprintf("A newer SockLens version is available: %s (installed: %s).\n", result.Latest, result.Current)
-	if runtime.GOOS == "windows" {
-		message += "Download/update instructions: " + result.ReleaseURL + "\n"
-	} else {
-		message += "Homebrew: brew update && brew upgrade Thuya-Myint/socklens/socklens\n"
-		message += "Other installations: " + result.ReleaseURL + "\n"
-	}
+	message += "Run: socklens update\n"
+	message += "Release: " + result.ReleaseURL + "\n"
 	return message
 }
 func validNonce(value string) bool {

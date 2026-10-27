@@ -35,6 +35,7 @@ Monitor:
 
 Manage:
   terminate      Preview or confirm process termination with --pid PID
+  update         Check and install a newer stable release
   update-check   Check GitHub for a newer stable release
   updates        Enable, disable, or view daily update notices
 
@@ -116,6 +117,8 @@ func RunContext(ctx context.Context, args []string, in io.Reader, out, errOut io
 		return watchCommand(ctx, args[1:], out, errOut)
 	case "wait":
 		return waitCommand(ctx, args[1:], out, errOut)
+	case "update":
+		return updateCommand(ctx, args[1:], in, out, errOut, version, update.DefaultUpdater())
 	case "update-check":
 		return updateCheckCommand(ctx, args[1:], out, errOut, version, update.DefaultChecker())
 	case "updates":

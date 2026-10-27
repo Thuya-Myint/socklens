@@ -28,6 +28,16 @@ func main() { os.Exit(run()) }
 
 func run() int {
 	ctx := context.Background()
+	if len(os.Args) > 1 && os.Args[1] == "__install-update" {
+		if len(os.Args) != 3 {
+			return 1
+		}
+		if err := update.RunInstallWorker(ctx, os.Args[2]); err != nil {
+			_, _ = fmt.Fprintln(os.Stderr, "socklens update:", err)
+			return 1
+		}
+		return 0
+	}
 	if len(os.Args) > 1 && os.Args[1] == "__update-refresh" {
 		if len(os.Args) != 3 {
 			return 0
@@ -60,7 +70,7 @@ func run() int {
 			}
 		}
 	}
-	if len(args) > 0 && (args[0] == "watch" || args[0] == "wait") {
+	if len(args) > 0 && (args[0] == "watch" || args[0] == "wait" || args[0] == "update") {
 		var stop context.CancelFunc
 		ctx, stop = signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 		defer stop()

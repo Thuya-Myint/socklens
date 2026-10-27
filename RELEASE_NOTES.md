@@ -1,114 +1,99 @@
-# SockLens v0.4.0
+# SockLens v0.5.0
 
-Default terminal colors and responsive socket output on Windows, macOS, and Linux.
-All downloads are standalone binaries; Go and a source checkout are not required.
-
-## Clearer terminal output
-
-- Grouped help, labeled success/error/warning messages, and readable empty results.
-- Aligned socket tables with socket, listening/bound, and connected counts.
-- Readable process names with safe escaping for unusual or control characters.
-- Timestamped watch events with counted added, removed, and updated sections.
-- Clearer termination confirmation, dry-run output, and missing-process guidance.
-
-## Responsive layouts and colors
-
-Wide terminals show a table. Narrow terminals show stacked socket records with
-wrapped values. Full endpoints, PIDs, and process names remain visible. Watch
-checks the width again for each output and adapts after a terminal resize.
-
-Colors are on by default in supported terminals:
+Check for a newer stable release and install it directly from SockLens:
 
 ```sh
-socklens list --listening
-socklens --color auto inspect 8080
-socklens list --color never
-socklens list --color always
+socklens update
 ```
 
-The global --color option accepts auto (default), always, and never. It may appear
-before the command or among its options, before a final PORT argument. NO_COLOR
-and TERM=dumb disable automatic colors; --color always overrides those settings.
-Windows enables native virtual-terminal output when supported.
+All downloads are standalone binaries for macOS, Windows, and Linux on amd64 and
+arm64. Go, a compiler, and a source checkout are not required.
 
-Redirected text stays plain by default. JSON output and JSON diagnostics never
-contain colors, even with --color always. Version output stays plain. Existing
-JSON schemas, exit codes, and safe process-termination protections are unchanged.
+## One initial upgrade from v0.4.0 or older
 
-## Upgrade on macOS / Linux with Homebrew
-
-Once the v0.4.0 tap formula is promoted:
+Older binaries do not contain the new command. Upgrade once using your existing
+installer. With Homebrew:
 
 ```sh
 brew update
 brew upgrade Thuya-Myint/socklens/socklens
 socklens version
-socklens update-check
 ```
 
-New installations can tap and install the ready-to-run binary:
+The version should be v0.5.0. For future releases, run `socklens update`.
 
-```sh
-brew tap Thuya-Myint/socklens https://github.com/Thuya-Myint/socklens
-brew install Thuya-Myint/socklens/socklens
-```
-
-## Windows
-
-Install through the Scoop bucket:
+For Scoop bucket installations:
 
 ```powershell
-scoop bucket add socklens https://github.com/Thuya-Myint/socklens
-scoop install socklens/socklens
-```
-
-Future upgrades use `scoop update` then `scoop update socklens`. If an older version
-was installed from a direct release-manifest URL, uninstall it once before
-installing through the bucket. The versioned release manifest remains available
-for users who want a specific version. The standalone PowerShell installer also
-installs the latest published release with checksum verification.
-
-## Linux / WSL2 binary installer
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/Thuya-Myint/socklens/main/install.sh -o /tmp/socklens-install.sh
-SOCKLENS_VERSION=v0.4.0 sh /tmp/socklens-install.sh
-export PATH="$HOME/.local/bin:$PATH"
+scoop update
+scoop update socklens
 socklens version
 ```
 
-## Update checks and automatic notices
+Older direct-manifest Scoop installs need the one-time bucket migration described
+in README.md. Linux/WSL2 users can rerun the binary installer:
 
 ```sh
-socklens update-check
-socklens update-check --timeout 10s
-socklens updates --enable
-socklens updates --status
+curl -fsSL https://raw.githubusercontent.com/Thuya-Myint/socklens/main/install.sh -o /tmp/socklens-install.sh
+SOCKLENS_VERSION=v0.5.0 sh /tmp/socklens-install.sh
 ```
 
-Update checks compare against published stable releases. Pushing source alone
-does not create a new downloadable version. Automatic notices are opt-in and
-check at most once every 24 hours during eligible interactive commands. The
-background result is cached; a notice can appear on a later command invocation.
-Manual update-check requests a fresh result immediately. Notices do not install
-updates; use your package manager or the binary installer to upgrade.
+## Update commands and options
 
-## Release automation
+```sh
+socklens update
+socklens update --dry-run
+socklens update --timeout 10m
+socklens update-check
+socklens update-check --json
+```
 
-Stable version tags now run the full CI matrix before publishing. Published files
-are checked against their hashes, then fresh Homebrew and standalone installations
-are tested. Homebrew, the Scoop bucket, and the Linux installer are promoted only
-after those checks pass. Reruns preserve published assets and prevent downgrades.
+- `update` checks the latest stable release and upgrades only when newer.
+- `--dry-run` shows the installation method without installing.
+- `--timeout` limits the whole operation; default 5m, allowed 1s to 30m.
+- `update-check` remains available for read-only checks and JSON output.
+- Update notices now suggest `socklens update`. Daily notices remain opt-in;
+  no updates are installed automatically.
 
-## Downloads and validation
+Homebrew installations refresh Homebrew and upgrade the receipt's formula.
+Scoop installations refresh Scoop and its buckets and upgrade SockLens. Both
+paths check the installed version afterward. If the release's installer has not
+been promoted yet, retry after publication completes.
 
-Six archives cover Windows, macOS, and Linux on amd64 and arm64. Windows uses ZIP;
-macOS and Linux use tar.gz. SHA256SUMS, a Homebrew formula, and a Scoop manifest
-are included. See README.md for every CLI command and option.
+Standalone installs download the matching release over HTTPS, verify SHA-256,
+architecture, and executable version, then replace the executable. A failed
+post-install check attempts to restore the previous executable. The install
+directory must be writable. Checksums and archives share the same GitHub trust
+boundary; checksums are not an independent publisher signature.
 
-Native tests passed on Intel/Apple Silicon macOS, x64/ARM64 Windows, and ARM64
-Linux, including native Mac terminal resize/color checks. Linux race tests,
-vulnerability checks, installation tests, and archive/checksum checks passed.
-Runtime source CI: https://github.com/Thuya-Myint/socklens/actions/runs/40453682724
+## Windows update progress
+
+Windows starts a copied installer in the background so the initiating executable
+can exit before replacement. The command prints a log location. Confirm the result:
+
+```powershell
+socklens update --status
+socklens version
+```
+
+`--status` is used alone and does not contact GitHub. A successful initial exit
+means the installer started; the status reports whether it completed or failed.
+Other running SockLens instances can block replacement; close them if reported.
+
+No administrator prompt, sudo, shell-profile change, or PowerShell execution-policy
+override is added. Unknown package-manager locations are refused. Existing socket
+commands, colors, JSON output, and safe process termination remain available.
+
+## Validation and installers
+
+The release workflow gates publication on Linux race/security checks and native
+Windows, macOS, and ARM64 Linux tests. Integrity, invalid-version/architecture,
+rollback, concurrent replacement, manager delegation, CLI, and Windows handoff
+cases are covered. Isolated Linux and Windows copies also passed real downloads
+and replacement before publication.
+
+Fresh Homebrew installations and standalone Windows/Linux installers are tested
+before Homebrew, the Scoop bucket, and the Linux installer are promoted. Six
+platform archives, SHA256SUMS, a Homebrew formula, and a Scoop manifest are included.
 
 Licensed under MIT.

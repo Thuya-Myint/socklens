@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.5.0 — 2026-10-27
+
+- `socklens update` checks and installs a newer stable release in one command.
+- Receipt-aware Homebrew and Scoop upgrades with installed-version verification.
+- Verified standalone downloads for macOS, Windows, Linux, and WSL2.
+- SHA-256, architecture/version checks, concurrent-change protection, and rollback.
+- Windows background installation with `update --status` and a per-update log.
+- `update --dry-run` and a configurable total timeout; no automatic installs.
+- Update notices point to the new update command.
+- Linux and Windows integrity, rollback, package-manager, and command tests.
+
 ## v0.4.0 — 2026-10-27
 
 - Version-tag CI publishes verified releases and promotes all installers after tests.

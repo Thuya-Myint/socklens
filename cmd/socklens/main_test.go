@@ -26,7 +26,7 @@ func TestAutomaticNoticeEligibility(t *testing.T) {
 		{[]string{"list", "-json"}, true, false}, {[]string{"list"}, false, false},
 		{[]string{"version"}, true, false}, {[]string{"terminate", "--pid", "123"}, true, false},
 		{[]string{"help"}, true, false}, {[]string{"update-check"}, true, false},
-		{[]string{"updates"}, true, false}, {[]string{"list", "--help"}, true, false}, {nil, true, false},
+		{[]string{"updates"}, true, false}, {[]string{"update"}, true, false}, {[]string{"list", "--help"}, true, false}, {nil, true, false},
 	} {
 		if got := shouldAutoNotify(tc.args, tc.terminal); got != tc.want {
 			t.Fatalf("%v terminal=%v: %v", tc.args, tc.terminal, got)

@@ -110,3 +110,4 @@ jobs:
           brew install socklens/native/socklens
           brew test socklens/native/socklens
           test -z "$(brew deps --include-build socklens/native/socklens)"
+          SOCKLENS_TEST_HOMEBREW_EXECUTABLE="$(brew --prefix socklens/native/socklens)/bin/socklens" go test -v ./internal/update -run '^TestInstalledHomebrewDetection$'
