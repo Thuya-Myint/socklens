@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Thuya-Myint/socklens/internal/platform"
+	"github.com/Thuya-Myint/socklens/internal/terminal"
 )
 
 type waitResult struct {
@@ -20,13 +21,12 @@ type waitResult struct {
 }
 
 func waitCommand(ctx context.Context, args []string, out, errOut io.Writer) int {
-	fs := flag.NewFlagSet("wait", flag.ContinueOnError)
-	fs.SetOutput(errOut)
+	fs := newCommandFlags("wait", errOut)
 	opts := addSocketFlags(fs)
 	until := fs.String("until", "present", "socket condition: present or absent")
 	timeout := fs.Duration("timeout", 30*time.Second, "maximum wait; 0 waits until interrupted")
 	interval := fs.Duration("interval", 500*time.Millisecond, "delay between polls (minimum 100ms)")
-	if err := fs.Parse(args); err != nil {
+	if err := parseCommandFlags(fs, args, errOut); err != nil {
 		if err == flag.ErrHelp {
 			return 0
 		}
@@ -53,10 +53,10 @@ func waitCommand(ctx context.Context, args []string, out, errOut io.Writer) int 
 	if err != nil {
 		switch {
 		case errors.Is(err, context.DeadlineExceeded):
-			fmt.Fprintf(errOut, "socklens: timed out waiting for port %d to become %s\n", opts.filter.port, *until)
+			_ = status(errOut, terminal.Warning, "TIMEOUT", fmt.Sprintf("socklens: timed out waiting for port %d to become %s", opts.filter.port, *until))
 			return 2
 		case errors.Is(err, context.Canceled):
-			fmt.Fprintln(errOut, "socklens: wait interrupted")
+			_ = status(errOut, terminal.Info, "CANCELLED", "socklens: wait interrupted")
 			return 130
 		default:
 			return fail(errOut, err)
@@ -108,7 +108,7 @@ func writeWaitResult(out io.Writer, result waitResult, asJSON bool) error {
 	if asJSON {
 		return json.NewEncoder(out).Encode(result)
 	}
-	if _, err := fmt.Fprintf(out, "Port %d condition %q matched (%d sockets)\n", result.Port, result.Condition, len(result.Sockets)); err != nil {
+	if err := status(out, terminal.Success, "OK", fmt.Sprintf("Port %d condition %q matched (%d sockets).", result.Port, result.Condition, len(result.Sockets))); err != nil {
 		return err
 	}
 	if len(result.Sockets) > 0 {

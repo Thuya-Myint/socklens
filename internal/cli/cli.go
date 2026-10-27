@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"runtime"
 	"strconv"
 	"strings"
-	"text/tabwriter"
+
+	"github.com/Thuya-Myint/socklens/internal/terminal"
 
 	"github.com/Thuya-Myint/socklens/internal/platform"
 	"github.com/Thuya-Myint/socklens/internal/update"
@@ -20,27 +22,41 @@ import (
 const help = `SockLens — inspect local TCP/UDP ports
 
 Usage:
-  socklens help
-  socklens version
-  socklens check
-  socklens update-check [--json] [--timeout 3s]
-  socklens updates [--enable | --disable | --status]
-  socklens list [--port PORT] [--protocol tcp|udp] [--pid PID] [--listening] [--json]
-  socklens inspect [--protocol tcp|udp] [--pid PID] [--listening] [--json] PORT
-  socklens watch [--interval 2s] [--count N] [--changes] [list filters] [--json]
-  socklens wait [--until present|absent] [--timeout 30s] [--interval 500ms] [filters] PORT
-  socklens terminate --pid PID [--dry-run] [--force]
+  socklens [--color auto|always|never] COMMAND [options]
 
-list includes listening, connected, and bound sockets in this network namespace.
-watch repeats snapshots until Ctrl+C; --count limits the number of snapshots.
-watch --changes reports additions, removals, and updates; unchanged polls are silent.
---listening selects TCP listeners and unconnected/bound UDP sockets.
-Process names are best-effort; unavailable owners are shown as "-".
-wait polls until a local socket condition matches; --timeout 0 waits indefinitely.
-Flags must precede the port argument for inspect and wait.
-terminate requires the PID again; Linux/macOS send identity-checked SIGTERM.
-Windows requires --force and uses immediate process termination.
-terminate --dry-run previews the target without prompting or sending a signal.
+Discover:
+  list           List local TCP/UDP sockets
+  inspect PORT   Inspect sockets on a local port
+  check          Check socket discovery on this machine
+
+Monitor:
+  watch          Repeat snapshots; --changes shows only changes
+  wait PORT      Wait for sockets to appear or disappear
+
+Manage:
+  terminate      Preview or confirm process termination with --pid PID
+  update-check   Check GitHub for a newer stable release
+  updates        Enable, disable, or view daily update notices
+
+About:
+  version        Show the installed version
+  help           Show this overview
+
+Examples:
+  socklens list --listening
+  socklens inspect --protocol tcp 8080
+  socklens watch --changes --port 8080
+  socklens wait --until absent --timeout 10s 8080
+  socklens terminate --pid 12345 --dry-run
+
+Options:
+  --color MODE   auto (default), always, or never; NO_COLOR disables auto color
+  --json         Structured output for list, inspect, watch, wait, update-check
+  -h, --help     Command options, for example: socklens list --help
+
+Put options before PORT for inspect and wait. JSON output never includes colors.
+Windows termination requires --force and typed PID confirmation.
+Linux/macOS use identity-checked SIGTERM with typed PID confirmation.
 `
 
 func Run(args []string, in io.Reader, out, errOut io.Writer, version string) int {
@@ -49,8 +65,18 @@ func Run(args []string, in io.Reader, out, errOut io.Writer, version string) int
 
 // RunContext allows long-running commands to stop when their caller cancels.
 func RunContext(ctx context.Context, args []string, in io.Reader, out, errOut io.Writer, version string) int {
+	var mode string
+	var err error
+	args, mode, err = ParseColorArgs(args)
+	if err != nil {
+		return fail(errOut, err)
+	}
+	if jsonRequested(args) {
+		mode = "never"
+	}
+	out, errOut = terminal.Wrap(out, mode), terminal.Wrap(errOut, mode)
 	if len(args) == 0 {
-		if _, err := fmt.Fprint(out, help); err != nil {
+		if err := writeHelp(out); err != nil {
 			return fail(errOut, err)
 		}
 		return 0
@@ -60,7 +86,7 @@ func RunContext(ctx context.Context, args []string, in io.Reader, out, errOut io
 		if len(args) != 1 {
 			return fail(errOut, fmt.Errorf("help takes no arguments"))
 		}
-		if _, err := fmt.Fprint(out, help); err != nil {
+		if err := writeHelp(out); err != nil {
 			return fail(errOut, err)
 		}
 		return 0
@@ -80,7 +106,7 @@ func RunContext(ctx context.Context, args []string, in io.Reader, out, errOut io
 		if err != nil {
 			return fail(errOut, err)
 		}
-		if _, err := fmt.Fprintf(out, "OK: %s/%s; socket discovery available (%d sockets). Process ownership may be hidden by permissions.\n", runtime.GOOS, runtime.GOARCH, len(rows)); err != nil {
+		if err := status(out, terminal.Success, "OK", fmt.Sprintf("Socket discovery is available on %s/%s (%d sockets).", runtime.GOOS, runtime.GOARCH, len(rows))); err != nil {
 			return fail(errOut, err)
 		}
 		return 0
@@ -105,7 +131,10 @@ func RunContext(ctx context.Context, args []string, in io.Reader, out, errOut io
 	}
 }
 
-func fail(w io.Writer, err error) int { fmt.Fprintln(w, "socklens:", err); return 1 }
+func fail(w io.Writer, err error) int {
+	_ = status(w, terminal.Error, "ERROR", "socklens: "+err.Error())
+	return 1
+}
 
 type socketOptions struct {
 	changes bool // watch only
@@ -151,10 +180,9 @@ func (opts *socketOptions) validate(fs *flag.FlagSet) error {
 }
 
 func sockets(command string, args []string, out, errOut io.Writer) int {
-	fs := flag.NewFlagSet(command, flag.ContinueOnError)
-	fs.SetOutput(errOut)
+	fs := newCommandFlags(command, errOut)
 	opts := addSocketFlags(fs)
-	if err := fs.Parse(args); err != nil {
+	if err := parseCommandFlags(fs, args, errOut); err != nil {
 		if err == flag.ErrHelp {
 			return 0
 		}
@@ -224,40 +252,15 @@ func writeSockets(out io.Writer, rows []platform.Socket, asJSON bool) error {
 		enc.SetIndent("", "  ")
 		return enc.Encode(rows)
 	}
-	w := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(w, "PROTO	LOCAL	REMOTE	STATE	PIDS	PROCESSES")
-	for _, row := range rows {
-		pids := make([]string, len(row.PIDs))
-		for i, pid := range row.PIDs {
-			pids[i] = strconv.Itoa(pid)
-		}
-		owner := strings.Join(pids, ",")
-		if owner == "" {
-			owner = "-"
-		}
-		names := make([]string, 0, len(row.Processes))
-		for _, process := range row.Processes {
-			if process.Name != "" {
-				// Kernel process names can contain tabs, newlines, or terminal escapes.
-				names = append(names, fmt.Sprintf("%d:%s", process.PID, strconv.QuoteToASCII(process.Name)))
-			}
-		}
-		detail := strings.Join(names, ",")
-		if detail == "" {
-			detail = "-"
-		}
-		fmt.Fprintf(w, "%s	%s	%s	%s	%s	%s\n", row.Protocol, row.Local, row.Remote, row.State, owner, detail)
-	}
-	return w.Flush()
+	return writeSocketTable(out, rows)
 }
 
 func terminate(args []string, in io.Reader, out, errOut io.Writer) int {
-	fs := flag.NewFlagSet("terminate", flag.ContinueOnError)
-	fs.SetOutput(errOut)
+	fs := newCommandFlags("terminate", errOut)
 	pid := fs.Int("pid", 0, "process ID to terminate")
 	dryRun := fs.Bool("dry-run", false, "preview the target without sending a signal")
 	force := fs.Bool("force", false, "Windows only: allow immediate process termination")
-	if err := fs.Parse(args); err != nil {
+	if err := parseCommandFlags(fs, args, errOut); err != nil {
 		if err == flag.ErrHelp {
 			return 0
 		}
@@ -276,20 +279,28 @@ func terminate(args []string, in io.Reader, out, errOut io.Writer) int {
 	if *dryRun {
 		id, err := platform.Identify(*pid)
 		if err != nil {
-			return fail(errOut, err)
+			return fail(errOut, processError(*pid, err))
 		}
-		if _, err := fmt.Fprintf(out, "Dry run: would send %s to %q (PID %d). No signal sent.\n", action, id.Name, id.PID); err != nil {
+		if err := status(out, terminal.Info, "DRY RUN", fmt.Sprintf("Would send %s to %q (PID %d). No signal sent.", action, id.Name, id.PID)); err != nil {
 			return fail(errOut, err)
 		}
 		return 0
 	}
 	target, err := platform.OpenTarget(*pid)
 	if err != nil {
-		return fail(errOut, err)
+		return fail(errOut, processError(*pid, err))
 	}
 	defer target.Close()
 	id := target.Identity()
-	if _, err := fmt.Fprintf(out, "Send %s to %q (PID %d)? Type %d to confirm: ", action, id.Name, id.PID, id.PID); err != nil {
+	if err := status(out, terminal.Warning, "CONFIRM", fmt.Sprintf("Send %s to %q (PID %d).", action, id.Name, id.PID)); err != nil {
+		return fail(errOut, err)
+	}
+	if runtime.GOOS == "windows" {
+		if err := status(out, terminal.Warning, "WARN", "Termination is immediate; unsaved work may be lost."); err != nil {
+			return fail(errOut, err)
+		}
+	}
+	if _, err := fmt.Fprintf(out, "Type %s to confirm, or press Enter to cancel: ", terminal.Style(out, terminal.Warning, strconv.Itoa(id.PID))); err != nil {
 		return fail(errOut, err)
 	}
 	line, err := bufio.NewReader(io.LimitReader(in, 64)).ReadString('\n')
@@ -302,8 +313,15 @@ func terminate(args []string, in io.Reader, out, errOut io.Writer) int {
 	if err := target.Terminate(); err != nil {
 		return fail(errOut, err)
 	}
-	if _, err := fmt.Fprintf(out, "%s sent to PID %d. The process may take time to exit.\n", action, id.PID); err != nil {
+	if err := status(out, terminal.Success, "OK", fmt.Sprintf("%s sent to PID %d. The process may take time to exit.", action, id.PID)); err != nil {
 		return fail(errOut, err)
 	}
 	return 0
+}
+
+func processError(pid int, err error) error {
+	if os.IsNotExist(err) {
+		return fmt.Errorf("process %d is no longer running; find a current PID with socklens list --listening", pid)
+	}
+	return err
 }

@@ -82,7 +82,7 @@ func TestSocketOutput(t *testing.T) {
 	if err := writeSockets(&out, rows, false); err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(out.String(), string(byte(27))) || !strings.Contains(out.String(), "42:") || !strings.Contains(out.String(), "PROCESSES") {
+	if strings.Contains(out.String(), string(byte(27))) || !strings.Contains(out.String(), `name\t\x1b\n`) || !strings.Contains(out.String(), "PROCESSES") {
 		t.Fatal("process names were not rendered safely:", out.String())
 	}
 	if err := writeSockets(brokenWriter{}, rows, false); err == nil {

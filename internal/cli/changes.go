@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Thuya-Myint/socklens/internal/platform"
+	"github.com/Thuya-Myint/socklens/internal/terminal"
 )
 
 type socketUpdate struct {
@@ -124,12 +125,12 @@ func writeChanges(out io.Writer, changes changeSet, asJSON bool) error {
 		return json.NewEncoder(out).Encode(changes)
 	}
 	if changes.Baseline {
-		if _, err := fmt.Fprintf(out, "Baseline %s (%d sockets)\n", changes.Timestamp.Format(time.RFC3339Nano), len(changes.Added)); err != nil {
+		if err := writeObservationHeading(out, "Baseline", fmt.Sprintf("%s | %s", changes.Timestamp.Format("2006-01-02 15:04:05.000Z07:00"), socketCount(len(changes.Added)))); err != nil {
 			return err
 		}
 		return writeSockets(out, changes.Added, false)
 	}
-	if _, err := fmt.Fprintf(out, "Changes %s\n", changes.Timestamp.Format(time.RFC3339Nano)); err != nil {
+	if err := writeObservationHeading(out, "Changes", fmt.Sprintf("%s | +%d added, -%d removed, %d updated", changes.Timestamp.Format("2006-01-02 15:04:05.000Z07:00"), len(changes.Added), len(changes.Removed), len(changes.Updated))); err != nil {
 		return err
 	}
 	for _, section := range []struct {
@@ -162,7 +163,13 @@ func writeChanges(out io.Writer, changes changeSet, asJSON bool) error {
 }
 
 func writeChangeSection(out io.Writer, label string, rows []platform.Socket) error {
-	if _, err := fmt.Fprintln(out, label); err != nil {
+	role := terminal.Warning
+	if label == "ADDED" {
+		role = terminal.Success
+	} else if label == "REMOVED" {
+		role = terminal.Error
+	}
+	if _, err := fmt.Fprintf(out, "%s (%d)\n", terminal.Style(out, role, label), len(rows)); err != nil {
 		return err
 	}
 	return writeSockets(out, rows, false)

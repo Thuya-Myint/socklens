@@ -76,6 +76,47 @@ socklens update-check
 
 The update-check and updates commands require v0.3.0 or newer.
 
+## Terminal output and colors
+
+Human-readable output uses aligned socket tables, a socket-count summary, clear
+empty results, and labeled status messages. Watch output groups additions,
+removals, and updates with UTC timestamps. Regular process names are shown
+without extra quotes; unusual names are escaped for safe terminal display.
+
+Socket tables adapt to the terminal width on Windows, macOS, and Linux. When a
+full table would not fit, each socket is shown as a stacked record with wrapped
+values. Endpoints, PIDs, and process names remain complete. Watch checks the
+width again for each output, so later snapshots adapt after a resize. Redirected
+text keeps the full table; JSON formatting is unchanged.
+
+Colors are automatic in supported Windows, macOS, and Linux terminals:
+
+- Green: success, listening/bound sockets, and added sockets.
+- Cyan: headings, information, and connected sockets.
+- Yellow: warnings, closing sockets, and updated sockets.
+- Red: errors and removed sockets. Labels also describe every status without color.
+
+| Global option | Meaning |
+| --- | --- |
+| --color auto | Detect color support independently for standard output and standard error; the default |
+| --color always | Force ANSI colors, including redirected text |
+| --color never | Disable colors |
+
+```sh
+socklens list --listening
+socklens list --color never
+socklens --color always inspect 8080
+```
+
+The --color option can appear before the command or among its options. Put it
+before PORT for inspect and wait, like other options. Set NO_COLOR to a nonempty
+value or TERM=dumb to disable automatic colors. Explicit --color always overrides
+these environment settings.
+
+Pipes and files receive plain text by default. JSON output and its diagnostics
+never contain colors, including when --color always is supplied. Version output
+also remains plain. Text layouts are intended for people; use --json for scripts.
+
 ## Commands
 
 | Command | Purpose |

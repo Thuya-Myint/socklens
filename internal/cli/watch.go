@@ -17,13 +17,12 @@ type snapshot struct {
 }
 
 func watchCommand(ctx context.Context, args []string, out, errOut io.Writer) int {
-	fs := flag.NewFlagSet("watch", flag.ContinueOnError)
-	fs.SetOutput(errOut)
+	fs := newCommandFlags("watch", errOut)
 	opts := addSocketFlags(fs)
 	fs.BoolVar(&opts.changes, "changes", false, "report only changes after an initial baseline")
 	interval := fs.Duration("interval", 2*time.Second, "delay between snapshots (minimum 100ms)")
 	count := fs.Int("count", 0, "number of snapshots; 0 watches until interrupted")
-	if err := fs.Parse(args); err != nil {
+	if err := parseCommandFlags(fs, args, errOut); err != nil {
 		if err == flag.ErrHelp {
 			return 0
 		}
@@ -80,7 +79,7 @@ func watchSnapshots(ctx context.Context, out io.Writer, opts socketOptions, inte
 				return err
 			}
 		} else {
-			if _, err := fmt.Fprintf(out, "Snapshot %s\n", observed.Format(time.RFC3339Nano)); err != nil {
+			if err := writeObservationHeading(out, "Snapshot", fmt.Sprintf("%s | %s", observed.Format("2006-01-02 15:04:05.000Z07:00"), socketCount(len(rows)))); err != nil {
 				return err
 			}
 			if err := writeSockets(out, rows, false); err != nil {

@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Automatic terminal colors with --color auto|always|never and NO_COLOR support.
+- Native Windows virtual-terminal support; plain output for redirected streams.
+- Grouped help, labeled statuses, readable empty results, and socket summaries.
+- Aligned colored tables and safely escaped, more readable process names.
+- Terminal-width detection and responsive stacked socket records on all supported platforms.
+- Full values wrap in narrow terminals; watch adapts on subsequent snapshots.
+- Compact watch timestamps and counted change sections.
+- Clear termination confirmation and missing-process guidance.
+- Unchanged JSON schemas and exit codes, with color-free JSON diagnostics.
+
 ## v0.3.0 — 2026-10-27
 
 - Version output contains only the version number.

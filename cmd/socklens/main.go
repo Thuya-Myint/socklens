@@ -10,6 +10,7 @@ import (
 	"syscall"
 
 	"github.com/Thuya-Myint/socklens/internal/cli"
+	"github.com/Thuya-Myint/socklens/internal/terminal"
 	"github.com/Thuya-Myint/socklens/internal/update"
 )
 
@@ -36,12 +37,16 @@ func run() int {
 		}
 		return 0
 	}
-	if shouldAutoNotify(os.Args[1:], isTerminal(os.Stdout) && isTerminal(os.Stderr)) {
+	args, mode, parseErr := cli.ParseColorArgs(os.Args[1:])
+	if parseErr != nil {
+		return cli.RunContext(ctx, os.Args[1:], os.Stdin, os.Stdout, os.Stderr, versionInfo())
+	}
+	if shouldAutoNotify(args, isTerminal(os.Stdout) && isTerminal(os.Stderr)) {
 		if service, err := update.DefaultService(); err == nil {
 			message, nonce, err := service.PrepareAutomatic(versionInfo())
 			if err == nil {
 				if message != "" {
-					_, _ = fmt.Fprint(os.Stderr, message)
+					_, _ = fmt.Fprint(os.Stderr, terminal.Style(terminal.Wrap(os.Stderr, mode), terminal.Warning, "UPDATE")+" "+message)
 				}
 				if nonce != "" {
 					executable, err := os.Executable()
@@ -55,7 +60,7 @@ func run() int {
 			}
 		}
 	}
-	if len(os.Args) > 1 && (os.Args[1] == "watch" || os.Args[1] == "wait") {
+	if len(args) > 0 && (args[0] == "watch" || args[0] == "wait") {
 		var stop context.CancelFunc
 		ctx, stop = signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 		defer stop()
@@ -64,8 +69,7 @@ func run() int {
 }
 
 func isTerminal(file *os.File) bool {
-	info, err := file.Stat()
-	return err == nil && info.Mode()&os.ModeCharDevice != 0
+	return terminal.IsTerminal(file)
 }
 func shouldAutoNotify(args []string, terminal bool) bool {
 	if !terminal || len(args) == 0 {

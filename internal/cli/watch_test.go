@@ -108,7 +108,7 @@ func TestWatchSingleSnapshotDoesNotWait(t *testing.T) {
 	defer cancel()
 	var out bytes.Buffer
 	err := watchSnapshots(ctx, &out, socketOptions{}, time.Hour, 1, func() ([]platform.Socket, error) { return nil, nil })
-	if err != nil || ctx.Err() != nil || !strings.Contains(out.String(), "Snapshot ") || !strings.Contains(out.String(), "PROCESSES") {
+	if err != nil || ctx.Err() != nil || !strings.Contains(out.String(), "Snapshot ") || !strings.Contains(out.String(), "No matching sockets.") {
 		t.Fatalf("err=%v context=%v output=%s", err, ctx.Err(), &out)
 	}
 }
