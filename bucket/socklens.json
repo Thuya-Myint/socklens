@@ -1,0 +1,19 @@
+{
+  "architecture": {
+    "64bit": {
+      "extract_dir": "socklens_v0.4.0_windows_amd64",
+      "hash": "c239590853ed4ee50fa376899e20e1015d5b210ed136d3bffb2a9599e6a1c73d",
+      "url": "https://github.com/Thuya-Myint/socklens/releases/download/v0.4.0/socklens_v0.4.0_windows_amd64.zip"
+    },
+    "arm64": {
+      "extract_dir": "socklens_v0.4.0_windows_arm64",
+      "hash": "47cd6c19c208497b5e09def115b16d072373e7202f0c5170dfe01032443fe512",
+      "url": "https://github.com/Thuya-Myint/socklens/releases/download/v0.4.0/socklens_v0.4.0_windows_arm64.zip"
+    }
+  },
+  "bin": "socklens.exe",
+  "description": "Inspect and monitor local ports",
+  "homepage": "https://github.com/Thuya-Myint/socklens",
+  "license": "MIT",
+  "version": "0.4.0"
+}
