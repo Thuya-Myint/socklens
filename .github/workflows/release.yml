@@ -1,43 +1,190 @@
-name: Prepare release draft
+name: Publish release and installers
 on:
+  push:
+    tags: ['v*']
   workflow_dispatch:
     inputs:
       version:
-        description: Existing tag to package (vMAJOR.MINOR.PATCH)
+        description: Existing stable version tag (vMAJOR.MINOR.PATCH)
         required: true
         type: string
 permissions:
   contents: read
+concurrency:
+  group: socklens-release
+  cancel-in-progress: false
 jobs:
-  prepare:
+  resolve:
+    if: github.repository == 'Thuya-Myint/socklens'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      sha: ${{ steps.source.outputs.sha }}
+    steps:
+      - name: Validate version
+        id: version
+        env:
+          REQUESTED_VERSION: ${{ inputs.version || github.ref_name }}
+        run: |
+          [[ "$REQUESTED_VERSION" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          [[ ${#REQUESTED_VERSION} -le 64 ]]
+          echo "version=$REQUESTED_VERSION" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.version.outputs.version }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Resolve immutable source and release notes
+        id: source
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git fetch origin main
+          sha=$(git rev-parse "refs/tags/$VERSION^{commit}")
+          test "$(git rev-parse HEAD)" = "$sha"
+          git merge-base --is-ancestor "$sha" origin/main
+          grep -Fx "# SockLens $VERSION" RELEASE_NOTES.md
+          grep -F "## $VERSION " CHANGELOG.md
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+  tests:
+    needs: resolve
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.resolve.outputs.sha }}
+
+  publish:
+    needs: [resolve, tests]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     env:
-      VERSION: ${{ inputs.version }}
+      VERSION: ${{ needs.resolve.outputs.version }}
+      SOURCE_COMMIT: ${{ needs.resolve.outputs.sha }}
     steps:
-      - name: Validate version
-        shell: bash
-        run: |
-          [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.version }}
+          ref: ${{ needs.resolve.outputs.sha }}
           fetch-depth: 0
-      - name: Verify tag
-        run: test "$(git rev-parse HEAD)" = "$(git rev-parse "refs/tags/$VERSION^{commit}")"
+          persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: stable
           cache: false
-      - run: make check
-      - run: make test
-      - run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
-      - name: Package tagged source
-        run: make release VERSION="$VERSION" COMMIT="$(git rev-parse HEAD)" BUILD_DATE="$(git show -s --format=%cI HEAD)"
-      - name: Verify checksums
-        run: cd "dist/$VERSION" && sha256sum -c SHA256SUMS
-      - name: Create unpublished release draft
+      - name: Package tested source
+        run: make release VERSION="$VERSION" COMMIT="$SOURCE_COMMIT" BUILD_DATE="$(git show -s --format=%cI "$SOURCE_COMMIT")"
+      - name: Verify all local checksums
+        run: |
+          cd "dist/$VERSION"
+          sha256sum -c SHA256SUMS
+      - name: Publish verified release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$VERSION" --verify-tag --draft --title "SockLens $VERSION" --notes-file RELEASE_NOTES.md "dist/$VERSION/"*
+        run: python3 .github/scripts/release.py publish --version "$VERSION" --commit "$SOURCE_COMMIT" --directory "dist/$VERSION"
+
+  homebrew-install:
+    needs: [resolve, publish]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-15-intel, macos-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      VERSION: ${{ needs.resolve.outputs.version }}
+      HOMEBREW_NO_AUTO_UPDATE: '1'
+      HOMEBREW_NO_ENV_HINTS: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          persist-credentials: false
+      - uses: Homebrew/actions/setup-homebrew@d482da0e602890d3160aade42e72c8556103bf04
+      - name: Download and verify published files
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/release.py download --version "$VERSION" --directory "$RUNNER_TEMP/socklens-assets"
+      - name: Test the new binary formula before promotion
+        run: |
+          tap="$RUNNER_TEMP/socklens-release-tap"
+          mkdir -p "$tap/Formula"
+          cp "$RUNNER_TEMP/socklens-assets/socklens.rb" "$tap/Formula/socklens.rb"
+          git -C "$tap" init --quiet
+          git -C "$tap" add Formula/socklens.rb
+          git -C "$tap" -c user.name=ReleaseTest -c user.email=release-test@example.invalid commit --quiet -m "Test $VERSION formula"
+          brew tap socklens/release "$tap"
+          brew install socklens/release/socklens
+          brew test socklens/release/socklens
+          test "$(socklens version)" = "socklens $VERSION"
+          test -z "$(brew deps --include-build socklens/release/socklens)"
+          socklens list --json | python3 -c 'import json,sys; assert isinstance(json.load(sys.stdin),list)'
+
+  binary-install:
+    needs: [resolve, publish]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, windows-11-arm]
+    runs-on: ${{ matrix.os }}
+    env:
+      VERSION: ${{ needs.resolve.outputs.version }}
+      RELEASE_PYTHON: ${{ startsWith(matrix.os, 'windows') && 'python' || 'python3' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          persist-credentials: false
+      - name: Download verified release and stage installer versions
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          "$RELEASE_PYTHON" .github/scripts/release.py download --version "$VERSION" --directory "$RUNNER_TEMP/socklens-assets"
+          "$RELEASE_PYTHON" .github/scripts/release.py stage --version "$VERSION" --directory "$RUNNER_TEMP/socklens-assets"
+      - name: Test Linux installer without Go on PATH
+        if: runner.os == 'Linux'
+        run: |
+          env PATH=/usr/bin:/bin SOCKLENS_INSTALL_DIR="$RUNNER_TEMP/socklens-new-bin" sh ./install.sh
+          test "$("$RUNNER_TEMP/socklens-new-bin/socklens" version)" = "socklens $VERSION"
+          "$RUNNER_TEMP/socklens-new-bin/socklens" list --json | python3 -c 'import json,sys; assert isinstance(json.load(sys.stdin),list)'
+      - name: Test Windows installer without Go on PATH
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installDirectory = Join-Path $env:RUNNER_TEMP 'socklens-new-bin'
+          $previousPath = $env:PATH
+          try {
+            $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
+            ./install.ps1 -Version $env:VERSION -InstallDir $installDirectory -NoPathUpdate
+            $executable = Join-Path $installDirectory 'socklens.exe'
+            if ((& $executable version) -ne "socklens $env:VERSION" -or $LASTEXITCODE -ne 0) { throw 'Installed version mismatch.' }
+            $jsonOutput = & $executable list --json
+            if ($LASTEXITCODE -ne 0) { throw 'Installed binary inspection failed.' }
+            $null = ConvertFrom-Json -InputObject ($jsonOutput -join "`n")
+          } finally {
+            $env:PATH = $previousPath
+          }
+
+  promote:
+    needs: [resolve, publish, homebrew-install, binary-install]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.resolve.outputs.version }}
+      SOURCE_COMMIT: ${{ needs.resolve.outputs.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          fetch-depth: 0
+      - name: Download verified published installer metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/release.py download --version "$VERSION" --directory "$RUNNER_TEMP/socklens-assets"
+      - name: Promote Homebrew, Scoop bucket, and Linux installer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/release.py promote --version "$VERSION" --commit "$SOURCE_COMMIT" --directory "$RUNNER_TEMP/socklens-assets"

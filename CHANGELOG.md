@@ -2,6 +2,9 @@
 
 ## v0.4.0 — 2026-10-27
 
+- Version-tag CI publishes verified releases and promotes all installers after tests.
+- A Scoop bucket enables normal scoop update upgrades.
+
 - Automatic terminal colors with --color auto|always|never and NO_COLOR support.
 - Native Windows virtual-terminal support; plain output for redirected streams.
 - Grouped help, labeled statuses, readable empty results, and socket summaries.

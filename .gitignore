@@ -3,3 +3,4 @@
 *.test
 coverage.out
 /dist/
+.github/scripts/__pycache__/

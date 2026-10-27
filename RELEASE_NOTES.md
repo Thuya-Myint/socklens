@@ -55,16 +55,18 @@ brew install Thuya-Myint/socklens/socklens
 
 ## Windows
 
-New Scoop installation:
+Install through the Scoop bucket:
 
 ```powershell
-scoop install https://github.com/Thuya-Myint/socklens/releases/download/v0.4.0/socklens.json
+scoop bucket add socklens https://github.com/Thuya-Myint/socklens
+scoop install socklens/socklens
 ```
 
-The direct Scoop manifest is version-pinned. To replace an older Scoop release,
-run `scoop uninstall socklens` before the installation command above. Users of the
-standalone PowerShell installer can rerun install.ps1 from the repository to get
-the latest published release with checksum verification.
+Future upgrades use `scoop update` then `scoop update socklens`. If an older version
+was installed from a direct release-manifest URL, uninstall it once before
+installing through the bucket. The versioned release manifest remains available
+for users who want a specific version. The standalone PowerShell installer also
+installs the latest published release with checksum verification.
 
 ## Linux / WSL2 binary installer
 
@@ -90,6 +92,13 @@ check at most once every 24 hours during eligible interactive commands. The
 background result is cached; a notice can appear on a later command invocation.
 Manual update-check requests a fresh result immediately. Notices do not install
 updates; use your package manager or the binary installer to upgrade.
+
+## Release automation
+
+Stable version tags now run the full CI matrix before publishing. Published files
+are checked against their hashes, then fresh Homebrew and standalone installations
+are tested. Homebrew, the Scoop bucket, and the Linux installer are promoted only
+after those checks pass. Reruns preserve published assets and prevent downgrades.
 
 ## Downloads and validation
 

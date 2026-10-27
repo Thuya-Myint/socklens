@@ -23,11 +23,12 @@ Homebrew selects the binary for Intel/AMD 64-bit or ARM64, including Apple Silic
 With Scoop installed, run in PowerShell:
 
 ```powershell
-scoop install https://github.com/Thuya-Myint/socklens/releases/download/v0.4.0/socklens.json
+scoop bucket add socklens https://github.com/Thuya-Myint/socklens
+scoop install socklens/socklens
 socklens version
 ```
 
-The manifest selects the x64 or ARM64 Windows binary.
+The bucket selects the x64 or ARM64 Windows binary and receives new release manifests automatically.
 
 ### Linux — binary installer
 
@@ -57,11 +58,19 @@ brew update
 brew upgrade Thuya-Myint/socklens/socklens
 ```
 
-With Scoop, the release manifest is version-pinned. To replace an older release:
+With Scoop bucket installations:
+
+```powershell
+scoop update
+scoop update socklens
+```
+
+If you installed an older version from a direct manifest URL, migrate once:
 
 ```powershell
 scoop uninstall socklens
-scoop install https://github.com/Thuya-Myint/socklens/releases/download/v0.4.0/socklens.json
+scoop bucket add socklens https://github.com/Thuya-Myint/socklens
+scoop install socklens/socklens
 ```
 
 On Linux/WSL2, rerun the binary installer commands above to replace the installed
