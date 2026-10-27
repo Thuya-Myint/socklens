@@ -44,7 +44,7 @@ The installer detects your CPU, verifies the download checksum, and installs int
 To choose another installation directory or published version:
 
 ```sh
-SOCKLENS_INSTALL_DIR="$HOME/bin" SOCKLENS_VERSION=v0.4.0 sh /tmp/socklens-install.sh
+SOCKLENS_INSTALL_DIR="$HOME/bin" SOCKLENS_VERSION=v0.5.0 sh /tmp/socklens-install.sh
 ```
 
 The installer does not change shell startup files. Add your installation directory to PATH if you want to run socklens from any terminal.
