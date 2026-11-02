@@ -49,9 +49,9 @@ func (u Updater) Detect() (Plan, error) {
 	if err != nil {
 		return Plan{}, err
 	}
-	target, err = filepath.EvalSymlinks(target)
+	target, err = resolveInstallPath(target)
 	if err != nil {
-		return Plan{}, err
+		return Plan{}, fmt.Errorf("resolve installed executable: %w", err)
 	}
 	info, err := os.Lstat(target)
 	if err != nil {
@@ -142,7 +142,7 @@ func (u Updater) Detect() (Plan, error) {
 			plan.VerifyPath = filepath.Join(appRoot, "current", filepath.Base(target))
 			plan.Key = plan.VerifyPath
 			physicalRoot := scoopRoot
-			if resolved, e := filepath.EvalSymlinks(scoopRoot); e == nil {
+			if resolved, e := resolveInstallPath(scoopRoot); e == nil {
 				physicalRoot = resolved
 			}
 			actualRoot := filepath.Dir(appsRoot)
@@ -151,7 +151,7 @@ func (u Updater) Detect() (Plan, error) {
 				if globalRoot == "" {
 					globalRoot = filepath.Join(os.Getenv("PROGRAMDATA"), "scoop")
 				}
-				if resolved, e := filepath.EvalSymlinks(globalRoot); e == nil {
+				if resolved, e := resolveInstallPath(globalRoot); e == nil {
 					globalRoot = resolved
 				}
 				if !strings.EqualFold(filepath.Clean(actualRoot), filepath.Clean(globalRoot)) {

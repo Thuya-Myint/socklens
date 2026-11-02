@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.5.2 — 2026-11-02
+
+- Resolve Windows Scoop current junctions and custom installation roots using native file handles.
+- Include the failing executable path in update-detection errors.
+- Add a real-junction Windows regression for Scoop detection, delegation, and status.
+
 ## v0.5.1 — 2026-11-02
 
 - Clarify wait present/absent conditions, immediate success, and both examples.

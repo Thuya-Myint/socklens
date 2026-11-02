@@ -281,6 +281,25 @@ Before removing that empty lock and retrying, confirm no updater is still runnin
 If a Windows background installer is stopped unexpectedly, retain its log and
 use the original installer to recover the installation.
 
+### Windows Scoop update troubleshooting
+
+In v0.5.0 and v0.5.1, update and update --status can fail with
+"The system cannot find the path specified" when resolving Scoop's current
+junction. Daily update notices are independent of installation; enabling them
+does not resolve this error.
+
+Upgrade once through Scoop to receive the fix in v0.5.2 or newer:
+
+```powershell
+scoop update
+scoop update socklens
+socklens version
+```
+
+v0.5.2 resolves Windows installation paths through native file handles. After
+this one-time upgrade, use socklens update and socklens update --status for
+future releases. v0.5.1 contains the help improvements but still has this bug.
+
 ### updates
 
 Daily CLI notices are off by default.

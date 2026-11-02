@@ -11,3 +11,9 @@ belongs behind build tags in internal/platform. Never add implicit termination,
 PID-based signal fallback, or automatic SIGKILL escalation.
 
 Contributions are submitted under the project's MIT license.
+
+Every published change must be tested across macOS, Windows, and Linux. Publish
+all supported amd64/arm64 binaries and update the matching Homebrew, Scoop, and
+Linux installers after required checks pass. Platform-specific fixes must also
+pass the other platforms' checks; do not ship a single-platform-only release
+unless the owner explicitly requests one.
