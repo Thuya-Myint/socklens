@@ -1,19 +1,19 @@
 {
   "architecture": {
     "64bit": {
-      "extract_dir": "socklens_v0.5.0_windows_amd64",
-      "hash": "a816cc45852ef944997eab319846ff14f3dd7010e4bb5a48f1cbafd12e73ad22",
-      "url": "https://github.com/Thuya-Myint/socklens/releases/download/v0.5.0/socklens_v0.5.0_windows_amd64.zip"
+      "extract_dir": "socklens_v0.5.1_windows_amd64",
+      "hash": "a53a1a72163d8587c583614eec0cb8bd7176f7c2142297ae2008fc6f0e254ee3",
+      "url": "https://github.com/Thuya-Myint/socklens/releases/download/v0.5.1/socklens_v0.5.1_windows_amd64.zip"
     },
     "arm64": {
-      "extract_dir": "socklens_v0.5.0_windows_arm64",
-      "hash": "8be552e9ca4f700a9c6dbec5aa4e21422c09fc4214a3afe06be80d18d20eabce",
-      "url": "https://github.com/Thuya-Myint/socklens/releases/download/v0.5.0/socklens_v0.5.0_windows_arm64.zip"
+      "extract_dir": "socklens_v0.5.1_windows_arm64",
+      "hash": "147663df79ec2b781ee98464da2203ff03e852f65cede2b824424d546ab07221",
+      "url": "https://github.com/Thuya-Myint/socklens/releases/download/v0.5.1/socklens_v0.5.1_windows_arm64.zip"
     }
   },
   "bin": "socklens.exe",
   "description": "Inspect and monitor local ports",
   "homepage": "https://github.com/Thuya-Myint/socklens",
   "license": "MIT",
-  "version": "0.5.0"
+  "version": "0.5.1"
 }

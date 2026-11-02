@@ -1,26 +1,26 @@
 class Socklens < Formula
   desc "Inspect and monitor local ports"
   homepage "https://github.com/Thuya-Myint/socklens"
-  version "0.5.0"
+  version "0.5.1"
   license "MIT"
   on_macos do
     on_intel do
-      url "https://github.com/Thuya-Myint/socklens/releases/download/v0.5.0/socklens_v0.5.0_darwin_amd64.tar.gz"
-      sha256 "c9260fcb54ac9a3ef9903a801b60a70b1f1b21bc8535d1def79417d4352e16f4"
+      url "https://github.com/Thuya-Myint/socklens/releases/download/v0.5.1/socklens_v0.5.1_darwin_amd64.tar.gz"
+      sha256 "42ae874d47af13c4ca1efa854f04cb9d1f4e2846d512380be102b8b4b8edd139"
     end
     on_arm do
-      url "https://github.com/Thuya-Myint/socklens/releases/download/v0.5.0/socklens_v0.5.0_darwin_arm64.tar.gz"
-      sha256 "9add1d111419b61591dd0fee6196bde6d5b1f4c18a59e17053fd9cff3f155529"
+      url "https://github.com/Thuya-Myint/socklens/releases/download/v0.5.1/socklens_v0.5.1_darwin_arm64.tar.gz"
+      sha256 "c4e56d8a78fc5bb5e0b53ce9f4fee0115e1255b54fd39034fe9b6dec7e59f916"
     end
   end
   on_linux do
     on_intel do
-      url "https://github.com/Thuya-Myint/socklens/releases/download/v0.5.0/socklens_v0.5.0_linux_amd64.tar.gz"
-      sha256 "f4de1f3dfba5f840799c80914a4bae7ec38969e8a2c6f275a2b83e9cc8056881"
+      url "https://github.com/Thuya-Myint/socklens/releases/download/v0.5.1/socklens_v0.5.1_linux_amd64.tar.gz"
+      sha256 "79b53f6e8ee390744b60df40f4661ef20fc237091b626c66ba976ebd9b6c69ef"
     end
     on_arm do
-      url "https://github.com/Thuya-Myint/socklens/releases/download/v0.5.0/socklens_v0.5.0_linux_arm64.tar.gz"
-      sha256 "f15d41aa3bfcdcd3cb86e7205902465ecbf8b9ca15d711e497e507e1e3f9245f"
+      url "https://github.com/Thuya-Myint/socklens/releases/download/v0.5.1/socklens_v0.5.1_linux_arm64.tar.gz"
+      sha256 "ff6ef8af141bbc3c789781691a3e3835a266c60bc015035fa498d68ce5a37c00"
     end
   end
   def install
