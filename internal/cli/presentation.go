@@ -95,6 +95,22 @@ func newCommandFlags(command string, out io.Writer) *flag.FlagSet {
 		})
 		visible.PrintDefaults()
 		fmt.Fprintln(out, "  --color auto|always|never\n        terminal colors (default auto)")
+		if command == "audit" {
+			fmt.Fprintln(out, `
+Explains local TCP listeners and bound/unconnected UDP sockets.
+Filters combine: --port PORT, --protocol tcp|udp, --pid PID.
+No probes or background update checks run during audit.
+Review items are configuration questions, not confirmed vulnerabilities.
+
+Examples:
+  socklens audit
+  socklens audit --port 8080
+  socklens audit --protocol tcp --json
+  socklens audit --pid 12345
+
+Exit 0 means the audit completed, including when review items exist.
+External reachability, authentication, TLS, and vulnerabilities are not tested.`)
+		}
 		if command == "wait" {
 			fmt.Fprintln(out, `
 Conditions:

@@ -27,6 +27,7 @@ Usage:
 Discover:
   list           List local TCP/UDP sockets
   inspect PORT   Inspect sockets on a local port
+  audit          Explain local listener bindings and review items
   check          Check socket discovery on this machine
 
 Monitor:
@@ -45,6 +46,7 @@ About:
 
 Examples:
   socklens list --listening
+  socklens audit --port 8080
   socklens inspect --protocol tcp 8080
   socklens watch --changes --port 8080
   socklens wait --until present --listening --timeout 30s 8080
@@ -53,7 +55,7 @@ Examples:
 
 Options:
   --color MODE   auto (default), always, or never; NO_COLOR disables auto color
-  --json         Structured output for list, inspect, watch, wait, update-check
+  --json         Structured output for list, inspect, audit, watch, wait, update-check
   -h, --help     Command options, for example: socklens list --help
 
 Put options before PORT for inspect and wait. JSON output never includes colors.
@@ -114,6 +116,8 @@ func RunContext(ctx context.Context, args []string, in io.Reader, out, errOut io
 		return 0
 	case "list", "inspect":
 		return sockets(args[0], args[1:], out, errOut)
+	case "audit":
+		return auditCommand(ctx, args[1:], out, errOut, platform.List)
 	case "watch":
 		return watchCommand(ctx, args[1:], out, errOut)
 	case "wait":
@@ -151,13 +155,19 @@ func addSocketFlags(fs *flag.FlagSet) *socketOptions {
 	fs.IntVar(&opts.filter.port, "port", 0, "local port (1-65535)")
 	fs.StringVar(&opts.filter.protocol, "protocol", "", "tcp or udp")
 	fs.IntVar(&opts.filter.pid, "pid", 0, "owning process ID (positive integer)")
-	fs.BoolVar(&opts.filter.listening, "listening", false, "TCP listeners and unconnected UDP sockets")
+	if fs.Name() == "audit" {
+		opts.filter.listening = true
+	} else {
+		fs.BoolVar(&opts.filter.listening, "listening", false, "TCP listeners and unconnected UDP sockets")
+	}
 	jsonHelp := "JSON array of matching sockets"
 	switch fs.Name() {
 	case "watch":
 		jsonHelp = "newline-delimited JSON snapshots or change records"
 	case "wait":
 		jsonHelp = "one JSON result when the condition matches"
+	case "audit":
+		jsonHelp = "one JSON audit report with listeners, findings, and scope limitations"
 	}
 	fs.BoolVar(&opts.json, "json", false, jsonHelp)
 	return opts
@@ -236,8 +246,7 @@ func filterSockets(rows []platform.Socket, filter socketFilter) ([]platform.Sock
 		if filter.protocol != "" && row.Protocol != filter.protocol {
 			continue
 		}
-		if filter.listening && !((row.Protocol == "tcp" && row.State == "LISTEN") ||
-			(row.Protocol == "udp" && (row.State == "UNCONN" || row.State == "BOUND"))) {
+		if filter.listening && !row.IsListener() {
 			continue
 		}
 		if filter.pid != 0 {

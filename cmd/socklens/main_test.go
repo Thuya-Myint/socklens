@@ -24,6 +24,7 @@ func TestAutomaticNoticeEligibility(t *testing.T) {
 		{[]string{"list"}, true, true}, {[]string{"watch", "--changes"}, true, true},
 		{[]string{"list", "--json"}, true, false}, {[]string{"inspect", "--json=true", "8080"}, true, false},
 		{[]string{"list", "-json"}, true, false}, {[]string{"list"}, false, false},
+		{[]string{"audit"}, true, false}, {[]string{"audit", "--json"}, true, false},
 		{[]string{"version"}, true, false}, {[]string{"terminate", "--pid", "123"}, true, false},
 		{[]string{"help"}, true, false}, {[]string{"update-check"}, true, false},
 		{[]string{"updates"}, true, false}, {[]string{"update"}, true, false}, {[]string{"list", "--help"}, true, false}, {nil, true, false},

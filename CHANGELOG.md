@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.6.0 — 2026-11-02
+
+- Passive local audit command with port, protocol, PID, JSON, and color options.
+- Binding classification for IPv4, IPv6, and mapped IPv4, with explicit reachability limits.
+- Observed information/review findings and unverified database/administration port hints.
+- Versioned JSON reports, responsive records, safe process rendering, and offline operation.
+- Shared listener selection and native TCP/UDP audit integration tests on every platform.
+- Windows TCP listener/connection queries avoid zero-state entries in combined tables.
+
 ## v0.5.2 — 2026-11-02
 
 - Resolve Windows Scoop current junctions and custom installation roots using native file handles.

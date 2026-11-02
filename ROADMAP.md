@@ -1,11 +1,11 @@
 # SockLens roadmap
 
-Status: proposal recorded on 2026-10-27. The v0.5.x line is the baseline; v0.5.1 clarifies help and documentation.
+Status: audit implementation recorded on 2026-11-02; later work remains proposed. The v0.5.x line provides discovery, process controls, installers, and updates.
 This document describes future work, not completed commands or a release promise.
 The owner wants SockLens to grow from local port inspection into service exposure
 and security analysis, eventually including explicitly selected remote hosts.
 
-## Current baseline: v0.5.x
+## v0.5.x foundation
 
 Local TCP/UDP IPv4/IPv6 discovery, PID/process information where available,
 combined filters, inspect/watch/wait, confirmed same-user process termination,
@@ -18,51 +18,41 @@ socket exists; absent means none exists. It stops when the condition matches or
 the timeout expires, and succeeds immediately if the initial snapshot matches.
 The README contains full examples, options, and exit codes.
 
-## Proposed v0.6.0: local exposure analysis and update reliability
+## v0.6.0: local exposure audit
 
-The primary user-facing addition would be a passive local audit. Existing list,
-inspect, watch, and wait behavior should remain compatible.
-
-### Proposed audit command
-
-These examples illustrate the intended interface; it is not implemented:
+Implemented commands:
 
 ```sh
 socklens audit
 socklens audit --port 8080
 socklens audit --protocol tcp --json
+socklens audit --pid 12345
 ```
 
-The audit would reuse local discovery and filters, then classify listener binding
-scope: loopback, wildcard, private-network, link-local, or another address scope.
-IPv4 and IPv6 require explicit tests. An IPv6 wildcard must not automatically be
-reported as also accepting IPv4.
+Audit reuses native local socket discovery and shared port/protocol/PID filtering.
+It classifies loopback, wildcard, private, link-local, multicast, and specific
+address bindings for IPv4, IPv6, and mapped IPv4. Every listener has structured
+findings with rule IDs, evidence, observed/heuristic confidence, and next steps.
+A small common-port hint set is explicitly unverified. Reports distinguish
+information from review; neither is a complete security verdict.
 
-Initial review rules could flag all-interface listeners and non-loopback
-listeners associated with potentially sensitive services. Port-based service
-names are hints and must be labeled as unverified. A broad binding can be
-intentional; its presence alone does not establish a vulnerability.
+The implementation is passive and offline. External reachability, IPv4 acceptance
+by IPv6 wildcard sockets, authentication, TLS, and CVEs are not inferred from
+open ports. No background update checks run during audit. Missing process details
+remain explicit. Windows uses separate listener/connection tables so zero states
+in the combined table do not hide listeners.
 
-Each result should include the endpoint/protocol, observed PID/process where
-available, rule identifier, direct evidence, a separate confidence label,
-why the configuration deserves review, and a practical recommendation.
-Findings should distinguish informational observations from review items;
-severity must have a stated basis rather than treating every open port as unsafe.
-Unknown process ownership should remain unknown rather than implying safety.
+A pure shared analysis package consumes socket observations independently of
+CLI rendering. JSON has schema_version 1; text uses responsive records and normal
+color controls. The audit reference linked from README documents every option,
+rule, JSON field, and limitation. Existing discovery JSON schemas are preserved.
 
-Example interpretation: an IPv4 listener at 0.0.0.0:5432 is bound to all local
-IPv4 interfaces. 5432 can suggest a service to investigate; it does not prove
-which service is running, its authentication settings, or a vulnerability.
-The recommendation could be to confirm whether broad binding is intended and
-review the application's binding and network-access controls.
+Tests cover address boundaries, confidence and hint semantics, missing metadata,
+combined filters, output errors, cancellation, escaping, narrow layouts, and
+live TCP/UDP listeners with connected sockets excluded. All-platform CI and
+fresh installation checks gate publication and installer promotion.
 
-A local bind address does not prove reachability from the Internet. Firewalls,
-routing, NAT, containers, and IPv6 policy affect reachability. Private addresses
-and loopback binding are scope observations, not complete security verdicts.
-The first audit should work from local observations without initiating remote
-probes. It should never change firewall rules or terminate services automatically.
-
-### Update reliability work
+### Follow-up update reliability work (not included in the initial audit)
 
 - Test existing installs upgrading through real isolated Homebrew taps and Scoop
   buckets in CI, in addition to the current fresh-install and delegation tests.

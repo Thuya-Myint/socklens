@@ -25,6 +25,12 @@ type Socket struct {
 	Processes []Process
 }
 
+// IsListener identifies TCP listeners and bound/unconnected UDP sockets.
+func (socket Socket) IsListener() bool {
+	return (socket.Protocol == "tcp" && socket.State == "LISTEN") ||
+		(socket.Protocol == "udp" && (socket.State == "UNCONN" || socket.State == "BOUND"))
+}
+
 // Identity binds a PID to its kernel start time to detect PID reuse.
 type Identity struct {
 	PID   int

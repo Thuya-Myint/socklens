@@ -78,3 +78,18 @@ func windowsTCPState(state uint32) string {
 	}
 	return fmt.Sprintf("UNKNOWN(%d)", state)
 }
+
+// The listener-only query proves LISTEN membership even on systems that return
+// a zero state in the combined TCP table. Connected rows keep their own state.
+func parseWindowsTCPTable(data []byte, ipv6, listeners bool) ([]Socket, error) {
+	rows, err := parseWindowsTable(data, "tcp", ipv6)
+	if err != nil {
+		return nil, err
+	}
+	if listeners {
+		for i := range rows {
+			rows[i].State = "LISTEN"
+		}
+	}
+	return rows, nil
+}

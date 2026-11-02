@@ -1,6 +1,6 @@
 # SockLens
 
-Inspect local TCP/UDP ports, see their processes, monitor changes, and terminate a process with confirmation. Available for macOS, Windows, Linux, and WSL2.
+Inspect local TCP/UDP ports, review listener exposure, see their processes, monitor changes, and terminate a process with confirmation. Available for macOS, Windows, Linux, and WSL2.
 
 ## Installation
 
@@ -151,6 +151,7 @@ also remains plain. Text layouts are intended for people; use --json for scripts
 | updates | Enable, disable, or view daily update notices |
 | list | List local TCP/UDP sockets |
 | inspect | Inspect a local port |
+| audit | Explain local listener bindings and configuration review items |
 | watch | Monitor sockets or changes |
 | wait | Wait for matching sockets to appear or disappear |
 | terminate | Preview or confirm process termination |
@@ -170,6 +171,7 @@ For command-specific options:
 ```sh
 socklens list --help
 socklens inspect --help
+socklens audit --help
 socklens watch --help
 socklens wait --help
 socklens terminate --help
@@ -178,7 +180,7 @@ socklens update --help
 socklens updates --help
 ```
 
-These eight commands also accept -h.
+These nine commands also accept -h.
 
 ### version
 
@@ -329,17 +331,17 @@ do not open a console window.
 Normal commands remain usable if GitHub is offline or the check fails. No
 automatic notice or background check runs for JSON output, redirected output,
 help, version, or termination. Notices use standard error and never alter socket
-JSON. Nothing is installed or replaced automatically.
+JSON. Nothing is installed or replaced automatically. Audit never schedules these background checks, including when notices are enabled.
 
 ### Shared discovery options
 
 | Option | Available on | Meaning |
 | --- | --- | --- |
-| --port PORT | list, watch | Filter by local port, from 1 to 65535 |
-| --protocol tcp or --protocol udp | list, inspect, watch, wait | Filter by protocol; the default includes both |
-| --pid PID | list, inspect, watch, wait | Filter by an observed process ID |
+| --port PORT | list, watch, audit | Filter by local port, from 1 to 65535 |
+| --protocol tcp or --protocol udp | list, inspect, watch, wait, audit | Filter by protocol; the default includes both |
+| --pid PID | list, inspect, watch, wait, audit | Filter by an observed process ID |
 | --listening | list, inspect, watch, wait | Select TCP listeners and unconnected/bound UDP sockets |
-| --json | list, inspect, watch, wait | Produce JSON output |
+| --json | list, inspect, watch, wait, audit | Produce JSON output |
 
 Filters combine: a socket must match every supplied filter. inspect and wait take their port as a positional argument; do not also pass --port.
 
@@ -375,6 +377,66 @@ socklens inspect --pid 12345 --json 8080
 Shows sockets matching the required local port. Accepts --protocol, --pid, --listening, and --json.
 
 An empty result means no matching socket was observed. Empty JSON output is [].
+
+### audit
+
+Requires v0.6.0 or newer. Explains a snapshot of local TCP listeners and bound or
+unconnected UDP sockets, with observed binding facts and configuration review
+items. It uses the same native discovery backends as list and inspect.
+
+```sh
+socklens audit
+socklens audit --port 8080
+socklens audit --protocol tcp
+socklens audit --pid 12345
+socklens audit --protocol tcp --port 5432 --json
+socklens audit --color never
+socklens audit --help
+```
+
+Replace 12345 with an actual observed PID. All supplied filters combine.
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| --port PORT | Any | Filter by local port, from 1 to 65535 |
+| --protocol tcp or --protocol udp | Both | Filter by transport protocol |
+| --pid PID | Any | Filter by an observed positive process ID |
+| --json | Off | Return one versioned JSON report with summary, listeners, findings, and limitations |
+| -h, --help | — | Show audit options and examples |
+
+Audit always selects listeners/bound UDP sockets, so it has no --listening option.
+It takes --port rather than a positional PORT. Use list to see connected sockets.
+
+Binding scopes are loopback, wildcard, private, link-local, multicast, and
+specific-address. IPv4, IPv6, and IPv4-mapped IPv6 are identified separately.
+An IPv6 wildcard does not establish that the socket also accepts IPv4.
+
+Each listener includes available PIDs/process names, metadata visibility, and
+findings with a rule ID, information/review level, confidence, evidence, and a
+suggested next step. Wildcard bindings produce review items. A small set of
+common database/administration ports can produce an additional non-loopback
+service review; these service hints are explicitly unverified. Process names are
+observations rather than confirmed service fingerprints.
+
+Review means "check whether this configuration is intended," not "a vulnerability
+was found." Information is not a safety verdict. External reachability is always
+reported as not tested. Firewall rules, routing, NAT, containers, and network
+namespaces can change actual reachability. UDP observations do not prove a
+responding service; Windows does not expose UDP connection state in its table.
+
+Audit is passive and works offline: it reads local tables without opening
+connections, probing services, looking up DNS names, downloading vulnerability
+data, or scheduling background update checks. Authentication, TLS, application
+health, and CVEs are not tested. It does not modify services or firewall rules.
+
+Text records adapt to terminal width and use normal color controls. JSON remains
+color-free. A completed audit exits 0 even when review items exist; errors exit 1,
+and interruption exits 130. Scripts can inspect summary.review_listeners instead
+of interpreting review items as a failed command. Empty results are a snapshot,
+not proof that a machine is secure.
+
+See the [audit reference](https://github.com/Thuya-Myint/socklens/blob/main/docs/audit.md)
+for rule definitions, the JSON schema, service hints, and interpretation examples.
 
 ### watch
 
@@ -510,20 +572,20 @@ Protected system PIDs, SockLens itself, and processes owned by another user are 
 
 list and inspect produce a JSON array. Each socket includes Protocol, Local, Remote, State, Inode, PIDs, and Processes. Each process entry includes PID and Name. Inode is a platform-specific identity value and may be empty.
 
-watch emits newline-delimited records; wait emits one result on success. JSON strings escape control characters in process names.
+watch emits newline-delimited records; wait emits one result on success. audit emits one report object with schema_version, timestamp, scope, external_reachability, summary, listeners, and notes. JSON strings escape control characters in process names. Existing discovery JSON schemas are unchanged.
 
 ## Exit codes
 
 | Code | Meaning |
 | --- | --- |
 | 0 | Command succeeded or help was displayed |
-| 1 | Invalid input, discovery/update failure, termination refusal, settings error, or output error |
+| 1 | Invalid input, discovery/audit/update failure, termination refusal, settings error, or output error |
 | 2 | wait timed out |
-| 130 | wait or a foreground update was interrupted |
+| 130 | wait, audit, or a foreground update was interrupted |
 
 Stopping watch with Ctrl+C exits successfully.
 
 ## Planned development
 
-The proposed v0.6.0 and later security-analysis direction is described in
-[ROADMAP.md](https://github.com/Thuya-Myint/socklens/blob/main/ROADMAP.md). Proposed commands are not part of v0.5.0.
+The audit implementation and later security-analysis direction are described in
+[ROADMAP.md](https://github.com/Thuya-Myint/socklens/blob/main/ROADMAP.md). Remote checks and protocol/vulnerability analysis remain planned work.

@@ -67,10 +67,11 @@ func List() ([]Socket, error) {
 	result := make([]Socket, 0)
 	names := map[int]string{}
 	for _, protocol := range []string{"tcp", "udp"} {
-		name, class := "GetExtendedTcpTable", uintptr(5)
+		name := "GetExtendedTcpTable"
+		classes := []uintptr{3, 4} // OWNER_PID_LISTENER, OWNER_PID_CONNECTIONS.
 		if protocol == "udp" {
 			name = "GetExtendedUdpTable"
-			class = 1
+			classes = []uintptr{1}
 		}
 		proc, err := dll.FindProc(name)
 		if err != nil {
@@ -81,29 +82,38 @@ func List() ([]Socket, error) {
 			if ipv6 {
 				family = 23
 			}
-			data, err := windowsTable(proc, family, class)
-			if err != nil {
-				return nil, fmt.Errorf("%s family %d: %w", name, family, err)
-			}
-			rows, err := parseWindowsTable(data, protocol, ipv6)
-			if err != nil {
-				return nil, err
-			}
-			for i := range rows {
-				for _, pid := range rows[i].PIDs {
-					name, ok := names[pid]
-					if !ok {
-						handle, err := syscall.OpenProcess(0x1000, false, uint32(pid))
-						if err == nil {
-							name, _ = windowsProcessName(handle)
-							syscall.CloseHandle(handle)
-						}
-						names[pid] = name
-					}
-					rows[i].Processes = append(rows[i].Processes, Process{PID: pid, Name: name})
+			// Separate TCP queries preserve listener identity on Windows versions
+			// that return state zero for entries in the combined table.
+			for _, class := range classes {
+				data, err := windowsTable(proc, family, class)
+				if err != nil {
+					return nil, fmt.Errorf("%s family %d class %d: %w", name, family, class, err)
 				}
+				var rows []Socket
+				if protocol == "tcp" {
+					rows, err = parseWindowsTCPTable(data, ipv6, class == 3)
+				} else {
+					rows, err = parseWindowsTable(data, protocol, ipv6)
+				}
+				if err != nil {
+					return nil, err
+				}
+				for i := range rows {
+					for _, pid := range rows[i].PIDs {
+						name, ok := names[pid]
+						if !ok {
+							handle, err := syscall.OpenProcess(0x1000, false, uint32(pid))
+							if err == nil {
+								name, _ = windowsProcessName(handle)
+								syscall.CloseHandle(handle)
+							}
+							names[pid] = name
+						}
+						rows[i].Processes = append(rows[i].Processes, Process{PID: pid, Name: name})
+					}
+				}
+				result = append(result, rows...)
 			}
-			result = append(result, rows...)
 		}
 	}
 	sortSockets(result)
