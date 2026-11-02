@@ -82,8 +82,34 @@ func newCommandFlags(command string, out io.Writer) *flag.FlagSet {
 			suffix = "--pid PID [options]"
 		}
 		fmt.Fprintf(out, "%s socklens %s %s\n\n", terminal.Style(out, terminal.Heading, "Usage:"), command, suffix)
-		fs.PrintDefaults()
+		// Positional-port commands share parsing with list/watch, but do not
+		// accept --port. Keep their help limited to usable options.
+		visible := flag.NewFlagSet(command, flag.ContinueOnError)
+		visible.SetOutput(out)
+		fs.VisitAll(func(option *flag.Flag) {
+			if (command == "inspect" || command == "wait") && option.Name == "port" {
+				return
+			}
+			visible.Var(option.Value, option.Name, option.Usage)
+			visible.Lookup(option.Name).DefValue = option.DefValue
+		})
+		visible.PrintDefaults()
 		fmt.Fprintln(out, "  --color auto|always|never\n        terminal colors (default auto)")
+		if command == "wait" {
+			fmt.Fprintln(out, `
+Conditions:
+  present  Succeed when at least one socket matches (default).
+  absent   Succeed when no matching sockets remain.
+  Both check immediately and succeed if the condition already holds.
+  Otherwise, wait until it matches, the timeout expires, or you press Ctrl+C.
+
+Examples:
+  socklens wait --until present --listening --protocol tcp --timeout 30s 8080
+  socklens wait --until absent --listening --protocol tcp --timeout 30s 8080
+
+With --listening --protocol tcp, present means starts listening;
+absent means stops listening. Put all options before the final PORT.`)
+		}
 	}
 	return fs
 }

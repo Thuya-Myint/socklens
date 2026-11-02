@@ -47,7 +47,8 @@ Examples:
   socklens list --listening
   socklens inspect --protocol tcp 8080
   socklens watch --changes --port 8080
-  socklens wait --until absent --timeout 10s 8080
+  socklens wait --until present --listening --timeout 30s 8080
+  socklens wait --until absent --listening --timeout 30s 8080
   socklens terminate --pid 12345 --dry-run
 
 Options:
@@ -151,7 +152,14 @@ func addSocketFlags(fs *flag.FlagSet) *socketOptions {
 	fs.StringVar(&opts.filter.protocol, "protocol", "", "tcp or udp")
 	fs.IntVar(&opts.filter.pid, "pid", 0, "owning process ID (positive integer)")
 	fs.BoolVar(&opts.filter.listening, "listening", false, "TCP listeners and unconnected UDP sockets")
-	fs.BoolVar(&opts.json, "json", false, "JSON output (watch: newline-delimited records)")
+	jsonHelp := "JSON array of matching sockets"
+	switch fs.Name() {
+	case "watch":
+		jsonHelp = "newline-delimited JSON snapshots or change records"
+	case "wait":
+		jsonHelp = "one JSON result when the condition matches"
+	}
+	fs.BoolVar(&opts.json, "json", false, jsonHelp)
 	return opts
 }
 

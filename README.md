@@ -385,14 +385,46 @@ Polling can miss connections that open and close between refreshes.
 
 ### wait
 
+Observe a local port until a condition matches or the timeout expires, whichever
+happens first. The command stays quiet while waiting and stops at the first
+matching snapshot.
+
+| Condition | When the command succeeds |
+| --- | --- |
+| --until present | At least one socket matches the port and every supplied filter |
+| --until absent | No socket matches the port and every supplied filter |
+
+With --listening --protocol tcp, present means a TCP listener exists and absent
+means no matching TCP listener remains. Think of these as "starts listening" and
+"stops listening." The condition is checked immediately: if it already holds,
+the command succeeds without waiting for a change.
+
+Wait for a service to start listening:
+
 ```sh
-socklens wait --listening --protocol tcp 8080
-socklens wait --until absent --listening --timeout 10s 8080
-socklens wait --pid 12345 --interval 1s --json 8080
-socklens wait --timeout 0 8080
+socklens wait --until present --listening --protocol tcp --timeout 30s 8080
 ```
 
-Waits quietly until the required local port matches the condition.
+If port 8080 starts listening after 3 seconds, this succeeds after approximately
+3 seconds; it does not continue waiting for the full 30 seconds. If no matching
+listener is observed before the deadline, it times out.
+
+Wait for a service to stop listening:
+
+```sh
+socklens wait --until absent --listening --protocol tcp --timeout 30s 8080
+```
+
+If there is already no matching listener, this succeeds immediately. Otherwise,
+it keeps checking until the listener disappears or the deadline expires.
+
+Additional examples:
+
+```sh
+socklens wait --listening --protocol tcp 8080
+socklens wait --pid 12345 --interval 1s --json 8080
+socklens wait --listening --timeout 0 8080
+```
 
 | Option | Default | Meaning |
 | --- | --- | --- |
@@ -400,11 +432,19 @@ Waits quietly until the required local port matches the condition.
 | --timeout DURATION | 30s | Maximum wait; 0 waits until interrupted |
 | --interval DURATION | 500ms | Wait between polls; minimum 100ms |
 
-Accepts --protocol, --pid, --listening, and --json. Options must precede the port.
+Accepts --protocol, --pid, --listening, and --json. All filters combine. Put every
+option before the final PORT argument; wait uses a positional port, not --port.
 
-The initial poll is immediate. Success prints a confirmation and any matching sockets. With --json, success is one object containing timestamp, condition, port, and sockets. Timeout and errors go to standard error.
+Success prints a confirmation and any matching sockets. With --json, success is
+one object containing timestamp, condition, port, and sockets. Timeout and errors
+go to standard error. Exit codes are 0 for success, 1 for an error, 2 for timeout,
+and 130 for interruption. Press Ctrl+C to cancel.
 
-Without --listening, sockets in other states also count. Socket presence does not establish application health, and absence does not reserve the port. Ctrl+C cancels the wait.
+wait reads local socket tables rather than connecting to the target port.
+Without --listening, sockets in other states also count; for UDP, --listening
+selects bound/unconnected sockets. Socket presence does not establish application
+health. Absence does not reserve the port or guarantee a later bind will succeed.
+Polling can miss brief changes between snapshots.
 
 ### terminate
 
@@ -463,3 +503,8 @@ watch emits newline-delimited records; wait emits one result on success. JSON st
 | 130 | wait or a foreground update was interrupted |
 
 Stopping watch with Ctrl+C exits successfully.
+
+## Planned development
+
+The proposed v0.6.0 and later security-analysis direction is described in
+[ROADMAP.md](https://github.com/Thuya-Myint/socklens/blob/main/ROADMAP.md). Proposed commands are not part of v0.5.0.

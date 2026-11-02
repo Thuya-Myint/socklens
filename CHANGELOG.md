@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.5.1 — 2026-11-02
+
+- Clarify wait present/absent conditions, immediate success, and both examples.
+- Hide the unsupported --port option from wait/inspect help and describe JSON output per command.
+- Expand wait documentation and record the proposed security-analysis roadmap.
+
 ## v0.5.0 — 2026-10-27
 
 - `socklens update` checks and installs a newer stable release in one command.

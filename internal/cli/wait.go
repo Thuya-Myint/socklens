@@ -23,7 +23,7 @@ type waitResult struct {
 func waitCommand(ctx context.Context, args []string, out, errOut io.Writer) int {
 	fs := newCommandFlags("wait", errOut)
 	opts := addSocketFlags(fs)
-	until := fs.String("until", "present", "socket condition: present or absent")
+	until := fs.String("until", "present", "present: a matching socket exists; absent: none remain")
 	timeout := fs.Duration("timeout", 30*time.Second, "maximum wait; 0 waits until interrupted")
 	interval := fs.Duration("interval", 500*time.Millisecond, "delay between polls (minimum 100ms)")
 	if err := parseCommandFlags(fs, args, errOut); err != nil {
