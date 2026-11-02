@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.6.1 — 2026-11-02
+
+- Audit reading priority puts non-loopback service-port hints and other review items before information.
+- Wildcard bindings lead within hinted-service reviews; numeric port/address ordering resolves ties.
+- Review findings appear before information within each record; text and JSON share deterministic ordering.
+- Explain the order in output, help, and documentation without implying vulnerability severity.
+- Shared ordering and CLI regressions run on macOS, Windows, and Linux.
+
 ## v0.6.0 — 2026-11-02
 
 - Passive local audit command with port, protocol, PID, JSON, and color options.

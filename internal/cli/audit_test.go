@@ -222,3 +222,43 @@ func TestAuditNativeListenerSnapshots(t *testing.T) {
 		})
 	}
 }
+
+func TestAuditReadingOrderTextAndJSON(t *testing.T) {
+	rows := []platform.Socket{
+		{Protocol: "tcp", Local: "127.0.0.1:22", State: "LISTEN"},
+		{Protocol: "tcp", Local: "10.0.0.1:80", State: "LISTEN"},
+		{Protocol: "udp", Local: "[::]:56169", State: "BOUND"},
+		{Protocol: "tcp", Local: "0.0.0.0:5432", State: "LISTEN"},
+	}
+	for _, structured := range []bool{false, true} {
+		args := []string{}
+		if structured {
+			args = append(args, "--json")
+		}
+		var out, stderr bytes.Buffer
+		if code := auditCommand(context.Background(), args, &out, &stderr, func() ([]platform.Socket, error) { return rows, nil }); code != 0 {
+			t.Fatal(code, stderr.String())
+		}
+		if structured {
+			var report audit.Report
+			if err := json.Unmarshal(out.Bytes(), &report); err != nil {
+				t.Fatal(err)
+			}
+			if len(report.Listeners) != 4 || report.Listeners[0].Local != "0.0.0.0:5432" || report.Listeners[3].Local != "127.0.0.1:22" {
+				t.Fatalf("JSON reading order: %+v", report.Listeners)
+			}
+		} else {
+			previous := -1
+			for _, heading := range []string{"REVIEW TCP 0.0.0.0:5432", "REVIEW UDP [::]:56169", "INFO TCP 10.0.0.1:80", "INFO TCP 127.0.0.1:22"} {
+				position := strings.Index(out.String(), heading)
+				if position <= previous {
+					t.Fatalf("heading %q out of order: %s", heading, out.String())
+				}
+				previous = position
+			}
+			if !strings.Contains(out.String(), "order is not a vulnerability score") {
+				t.Fatal("reading order presented without its limitation")
+			}
+		}
+	}
+}

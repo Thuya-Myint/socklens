@@ -435,6 +435,13 @@ and interruption exits 130. Scripts can inspect summary.review_listeners instead
 of interpreting review items as a failed command. Empty results are a snapshot,
 not proof that a machine is secure.
 
+From v0.6.1, read top to bottom: non-loopback database/administration port hints,
+other review items, other specific-address bindings, then loopback entries.
+Wildcard bindings come first within the hinted-service group; ties use numeric
+port, protocol, and address order. Review findings appear before informational
+findings inside each record. Text and JSON share this order. This is a reading
+priority, not a vulnerability score; service hints remain unverified.
+
 See the [audit reference](https://github.com/Thuya-Myint/socklens/blob/main/docs/audit.md)
 for rule definitions, the JSON schema, service hints, and interpretation examples.
 

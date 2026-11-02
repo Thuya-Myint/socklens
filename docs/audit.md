@@ -71,6 +71,26 @@ A loopback listener can still show a service hint, but it does not receive the
 non-loopback service review finding. Multiple findings for a listener count as
 one listener in summary.review_listeners.
 
+## Reading order (v0.6.1 and newer)
+
+Text and JSON listener records use the same reading priority:
+
+1. Non-loopback listeners on a hinted database/administration service port.
+2. Other review items (currently wildcard bindings).
+3. Other non-loopback specific-address bindings.
+4. Loopback bindings.
+
+Within the first group, wildcard bindings precede specific bindings. Within each
+remaining tie, numeric port comes first, then protocol and numeric address, with
+socket identity and normalized ownership as deterministic final tie breakers.
+For example, port 80 precedes 443 and address 10.0.0.2 precedes 10.0.0.10.
+Review findings precede information findings inside each listener record.
+
+This order helps choose which configuration questions to read first. It is not
+a severity ranking: service hints remain unverified and missing process metadata
+does not increase a listener's priority. A loopback record is not a safety verdict.
+Filters, finding levels, summary counts, and schema_version 1 remain unchanged.
+
 ## Windows TCP collection
 
 Windows discovery queries listener and connection tables separately. Membership
@@ -118,7 +138,7 @@ A finding contains rule_id, level (information/review), confidence
 (observed/heuristic), title, evidence (an array of observations), and recommendation.
 A service hint contains name, source, and verified false.
 
-Results are sorted for repeatability, but timestamps and live observations may
+Results use the reading order above for repeatability, but timestamps and live observations may
 change. Repeated socket rows are kept as separate observations; socket identity
 and owner metadata are platform-dependent.
 

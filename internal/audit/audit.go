@@ -131,6 +131,10 @@ func Analyze(rows []platform.Socket, observedAt time.Time) (Report, error) {
 				})
 			}
 		}
+		// Within each record, put the review question before background information.
+		sort.SliceStable(listener.Findings, func(i, j int) bool {
+			return listener.Findings[i].Level == "review" && listener.Findings[j].Level != "review"
+		})
 		review := false
 		for _, finding := range listener.Findings {
 			if finding.Level == "review" {
@@ -151,8 +155,26 @@ func Analyze(rows []platform.Socket, observedAt time.Time) (Report, error) {
 	}
 	sort.SliceStable(report.Listeners, func(i, j int) bool {
 		a, b := report.Listeners[i], report.Listeners[j]
+		if ap, bp := readingPriority(a), readingPriority(b); ap != bp {
+			return ap < bp
+		}
+		// Within a reading group, broader bindings come first. This is an
+		// explanation order, not a claim about severity or reachability.
+		if (a.BindingScope == "wildcard") != (b.BindingScope == "wildcard") {
+			return a.BindingScope == "wildcard"
+		}
+		// Analyze has already validated numeric endpoints. Compare numeric ports
+		// and addresses so port 80 precedes 443 rather than sorting as strings.
+		ae, _ := netip.ParseAddrPort(a.Local)
+		be, _ := netip.ParseAddrPort(b.Local)
+		if ae.Port() != be.Port() {
+			return ae.Port() < be.Port()
+		}
 		if a.Protocol != b.Protocol {
 			return a.Protocol < b.Protocol
+		}
+		if order := ae.Addr().Compare(be.Addr()); order != 0 {
+			return order < 0
 		}
 		if a.Local != b.Local {
 			return a.Local < b.Local
@@ -177,6 +199,25 @@ func Analyze(rows []platform.Socket, observedAt time.Time) (Report, error) {
 		return a.State < b.State
 	})
 	return report, nil
+}
+
+// readingPriority helps people find configuration questions before background
+// information. Port hints remain heuristic; this is not a vulnerability score.
+func readingPriority(listener Listener) int {
+	for _, finding := range listener.Findings {
+		if finding.RuleID == "sensitive-service-port" {
+			return 0
+		}
+	}
+	for _, finding := range listener.Findings {
+		if finding.Level == "review" {
+			return 1
+		}
+	}
+	if listener.BindingScope != "loopback" {
+		return 2
+	}
+	return 3
 }
 
 func bindingScope(address netip.Addr) string {

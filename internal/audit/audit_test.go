@@ -102,11 +102,17 @@ func TestAnalyzeDeterminismAndSnapshotOwnership(t *testing.T) {
 	if string(a) != string(b) {
 		t.Fatal("input order or time zone changes the report")
 	}
-	if !reflect.DeepEqual(first.Listeners[0].PIDs, []int{2, 5}) {
+	var owned *Listener
+	for i := range first.Listeners {
+		if first.Listeners[i].Local == "127.0.0.1:80" {
+			owned = &first.Listeners[i]
+		}
+	}
+	if owned == nil || !reflect.DeepEqual(owned.PIDs, []int{2, 5}) {
 		t.Fatal("owners not normalized")
 	}
-	first.Listeners[0].PIDs[0] = 99
-	first.Listeners[0].Processes[0].Name = "changed"
+	owned.PIDs[0] = 99
+	owned.Processes[0].Name = "changed"
 	after, _ := json.Marshal(rows)
 	if string(original) != string(after) {
 		t.Fatal("analysis/report mutation changed the caller's snapshot")
@@ -129,5 +135,51 @@ func TestInvalidListenerAndEmptyJSON(t *testing.T) {
 	}
 	if !strings.Contains(string(encoded), `"listeners":[]`) || report.Summary.Listeners != 0 || report.Scope != "local" {
 		t.Fatal("empty report is ambiguous", string(encoded))
+	}
+}
+
+func TestReadingOrder(t *testing.T) {
+	// Intentionally mixed protocols, string/numeric port order, binding scopes,
+	// heuristic hints, and process visibility. Missing metadata is not severity.
+	rows := []platform.Socket{
+		{Protocol: "tcp", Local: "127.0.0.1:22", State: "LISTEN"},
+		{Protocol: "tcp", Local: "10.0.0.10:80", State: "LISTEN"},
+		{Protocol: "udp", Local: "[::]:56169", State: "BOUND"},
+		{Protocol: "tcp", Local: "10.0.0.1:22", State: "LISTEN"},
+		{Protocol: "tcp", Local: "0.0.0.0:5432", State: "LISTEN"},
+		{Protocol: "udp", Local: "0.0.0.0:161", State: "BOUND"},
+		{Protocol: "tcp", Local: "0.0.0.0:443", State: "LISTEN"},
+		{Protocol: "tcp", Local: "0.0.0.0:80", State: "LISTEN"},
+		{Protocol: "udp", Local: "0.0.0.0:80", State: "BOUND"},
+		{Protocol: "tcp", Local: "10.0.0.2:80", State: "LISTEN"},
+		{Protocol: "udp", Local: "127.0.0.1:9", State: "BOUND"},
+	}
+	want := []string{
+		"udp 0.0.0.0:161", "tcp 0.0.0.0:5432", "tcp 10.0.0.1:22",
+		"tcp 0.0.0.0:80", "udp 0.0.0.0:80", "tcp 0.0.0.0:443", "udp [::]:56169",
+		"tcp 10.0.0.2:80", "tcp 10.0.0.10:80",
+		"udp 127.0.0.1:9", "tcp 127.0.0.1:22",
+	}
+	for rotation := range rows {
+		input := append(append([]platform.Socket{}, rows[rotation:]...), rows[:rotation]...)
+		report, err := Analyze(input, snapshotTime)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := []string{}
+		for _, listener := range report.Listeners {
+			got = append(got, listener.Protocol+" "+listener.Local)
+			informationSeen := false
+			for _, finding := range listener.Findings {
+				if finding.Level == "information" {
+					informationSeen = true
+				} else if informationSeen {
+					t.Fatalf("review after information: %+v", listener)
+				}
+			}
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("rotation %d: got %v; want %v", rotation, got, want)
+		}
 	}
 }

@@ -101,6 +101,8 @@ Explains local TCP listeners and bound/unconnected UDP sockets.
 Filters combine: --port PORT, --protocol tcp|udp, --pid PID.
 No probes or background update checks run during audit.
 Review items are configuration questions, not confirmed vulnerabilities.
+Reading order: non-loopback service-port hints, other review items,
+other specific bindings, then loopback. Hints are unverified, not a severity score.
 
 Examples:
   socklens audit

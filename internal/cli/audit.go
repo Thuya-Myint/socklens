@@ -88,6 +88,9 @@ func writeAuditReport(out io.Writer, report audit.Report, columns int) error {
 	if err := writeFolded(out, terminal.Info, "External reachability: not tested. Review items are not confirmed vulnerabilities.", columns); err != nil {
 		return err
 	}
+	if err := writeFolded(out, terminal.Muted, "Read first: non-loopback service-port hints, other review items, other specific bindings, then loopback. Hints are unverified; order is not a vulnerability score.", columns); err != nil {
+		return err
+	}
 	if len(report.Listeners) == 0 {
 		if err := writeFolded(out, terminal.Info, "INFO No matching local listeners were observed.", columns); err != nil {
 			return err
