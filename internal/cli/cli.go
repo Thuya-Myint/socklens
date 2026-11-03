@@ -27,7 +27,7 @@ Usage:
 Discover:
   list           List local TCP/UDP sockets
   inspect PORT   Inspect sockets on a local port
-  audit          Explain local listener bindings and review items
+  audit          Explain listener bindings and local firewall context
   check          Check socket discovery on this machine
 
 Monitor:

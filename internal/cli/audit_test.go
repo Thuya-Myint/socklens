@@ -7,12 +7,14 @@ import (
 	"errors"
 	"io"
 	"net"
+	"net/netip"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/Thuya-Myint/socklens/internal/audit"
+	"github.com/Thuya-Myint/socklens/internal/firewall"
 	"github.com/Thuya-Myint/socklens/internal/platform"
 )
 
@@ -47,7 +49,7 @@ func TestAuditFiltersJSONAndErrors(t *testing.T) {
 			calls := 0
 			lister := func() ([]platform.Socket, error) { calls++; return auditFixture(), nil }
 			var out, stderr bytes.Buffer
-			code := auditCommand(context.Background(), tc.args, &out, &stderr, lister)
+			code := auditTestCommand(context.Background(), tc.args, &out, &stderr, lister)
 			if code != tc.code {
 				t.Fatalf("%d: %s%s", code, &out, &stderr)
 			}
@@ -78,21 +80,21 @@ func TestAuditCancellationCollectionAndOutputFailure(t *testing.T) {
 	cancel()
 	calls := 0
 	lister := func() ([]platform.Socket, error) { calls++; return auditFixture(), nil }
-	if code := auditCommand(ctx, nil, &out, &stderr, lister); code != 130 || calls != 0 {
+	if code := auditTestCommand(ctx, nil, &out, &stderr, lister); code != 130 || calls != 0 {
 		t.Fatal("pre-cancelled audit collected sockets", code, calls)
 	}
 	ctx, cancel = context.WithCancel(context.Background())
 	defer cancel()
-	if code := auditCommand(ctx, nil, &out, &stderr, func() ([]platform.Socket, error) { cancel(); return auditFixture(), nil }); code != 130 {
+	if code := auditTestCommand(ctx, nil, &out, &stderr, func() ([]platform.Socket, error) { cancel(); return auditFixture(), nil }); code != 130 {
 		t.Fatal("late result reported as success", code)
 	}
 	out.Reset()
 	stderr.Reset()
-	if code := auditCommand(context.Background(), nil, &out, &stderr, func() ([]platform.Socket, error) { return nil, errors.New("permission denied") }); code != 1 || out.Len() != 0 || !strings.Contains(stderr.String(), "permission denied") {
+	if code := auditTestCommand(context.Background(), nil, &out, &stderr, func() ([]platform.Socket, error) { return nil, errors.New("permission denied") }); code != 1 || out.Len() != 0 || !strings.Contains(stderr.String(), "permission denied") {
 		t.Fatal("discovery failure reported as empty audit", code, &out, &stderr)
 	}
 	for _, args := range [][]string{nil, {"--json"}} {
-		if code := auditCommand(context.Background(), args, brokenWriter{}, io.Discard, lister); code != 1 {
+		if code := auditTestCommand(context.Background(), args, brokenWriter{}, io.Discard, lister); code != 1 {
 			t.Fatal("output failure ignored")
 		}
 	}
@@ -160,7 +162,7 @@ func TestAuditNativeListenerSnapshots(t *testing.T) {
 				t.Fatal(err)
 			}
 			var out, stderr bytes.Buffer
-			args := []string{"audit", "--port", port, "--protocol", protocol, "--json", "--color", "always"}
+			args := []string{"audit", "--firewall=false", "--port", port, "--protocol", protocol, "--json", "--color", "always"}
 			if code := RunContext(context.Background(), args, strings.NewReader(""), &out, &stderr, "test"); code != 0 {
 				t.Fatalf("%d %s", code, &stderr)
 			}
@@ -236,7 +238,7 @@ func TestAuditReadingOrderTextAndJSON(t *testing.T) {
 			args = append(args, "--json")
 		}
 		var out, stderr bytes.Buffer
-		if code := auditCommand(context.Background(), args, &out, &stderr, func() ([]platform.Socket, error) { return rows, nil }); code != 0 {
+		if code := auditTestCommand(context.Background(), args, &out, &stderr, func() ([]platform.Socket, error) { return rows, nil }); code != 0 {
 			t.Fatal(code, stderr.String())
 		}
 		if structured {
@@ -260,5 +262,117 @@ func TestAuditReadingOrderTextAndJSON(t *testing.T) {
 				t.Fatal("reading order presented without its limitation")
 			}
 		}
+	}
+}
+
+func auditTestCommand(ctx context.Context, args []string, out, errOut io.Writer, list func() ([]platform.Socket, error)) int {
+	return auditWithFirewall(ctx, args, out, errOut, list, func(context.Context, []platform.Socket) firewall.Snapshot { return firewall.Empty() })
+}
+
+func TestAuditFirewallOptionsAndCoverage(t *testing.T) {
+	for _, tc := range []struct {
+		args        []string
+		code, calls int
+	}{
+		{[]string{"--json", "--peer", "192.168.1.20"}, 0, 1},
+		{[]string{"--firewall=false", "--json"}, 0, 0},
+		{[]string{"--peer", "example.com"}, 1, 0},
+		{[]string{"--peer", ""}, 1, 0},
+		{[]string{"--peer", "192.168.1.20", "--firewall=false"}, 1, 0},
+		{[]string{"--firewall-timeout", "0s"}, 1, 0},
+		{[]string{"--firewall-timeout", "3m"}, 1, 0},
+		{[]string{"--rule-limit", "-1"}, 1, 0},
+		{[]string{"--help"}, 0, 0},
+	} {
+		t.Run(strings.Join(tc.args, " "), func(t *testing.T) {
+			calls := 0
+			var out, stderr bytes.Buffer
+			collector := func(ctx context.Context, rows []platform.Socket) firewall.Snapshot {
+				calls++
+				if _, ok := ctx.Deadline(); !ok {
+					t.Fatal("unbounded policy query")
+				}
+				s := firewall.Empty()
+				s.Coverage = "partial"
+				s.Sources = append(s.Sources, firewall.Source{Name: "fixture", Status: "read"})
+				s.Rules = append(s.Rules, firewall.Rule{ID: "in", Source: "fixture", Direction: "inbound", Action: "allow", Family: "ipv4", Protocols: []string{"tcp"}, LocalPorts: []string{"5432"}, RemoteAddresses: []string{"192.168.1.0/24"}})
+				return s
+			}
+			code := auditWithFirewall(context.Background(), tc.args, &out, &stderr, func() ([]platform.Socket, error) { return auditFixture(), nil }, collector)
+			if code != tc.code || calls != tc.calls {
+				t.Fatalf("code=%d calls=%d: %s%s", code, calls, &out, &stderr)
+			}
+			if code == 0 && strings.Contains(strings.Join(tc.args, " "), "--json") {
+				var report audit.Report
+				if err := json.Unmarshal(out.Bytes(), &report); err != nil {
+					t.Fatal(err)
+				}
+				if calls == 0 && report.Firewall != nil {
+					t.Fatal("disabled policy collector still included")
+				}
+				if calls > 0 && (report.Firewall == nil || report.Listeners[0].Firewall == nil || len(report.Listeners[0].Firewall.Inbound.Rules) != 1) {
+					t.Fatalf("missing context: %+v", report)
+				}
+			}
+		})
+	}
+}
+func TestAuditPolicyTimeoutAndCancellation(t *testing.T) {
+	var out, stderr bytes.Buffer
+	collector := func(ctx context.Context, _ []platform.Socket) firewall.Snapshot {
+		<-ctx.Done()
+		return firewall.Empty()
+	}
+	code := auditWithFirewall(context.Background(), []string{"--json", "--firewall-timeout", "1s"}, &out, &stderr, func() ([]platform.Socket, error) { return auditFixture(), nil }, collector)
+	var report audit.Report
+	if code != 0 || json.Unmarshal(out.Bytes(), &report) != nil || report.Firewall == nil || report.Firewall.Coverage != "unknown" {
+		t.Fatal("policy timeout erased socket report or implied coverage", code, &out, &stderr)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	out.Reset()
+	stderr.Reset()
+	code = auditWithFirewall(ctx, nil, &out, &stderr, func() ([]platform.Socket, error) { return auditFixture(), nil }, func(context.Context, []platform.Socket) firewall.Snapshot { cancel(); return firewall.Empty() })
+	if code != 130 || out.Len() != 0 {
+		t.Fatal("late policy report after cancellation", code, &out, &stderr)
+	}
+}
+func TestAuditPolicyRenderingLimitsAndEscaping(t *testing.T) {
+	report, err := audit.Analyze(auditFixture(), time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := firewall.Empty()
+	s.Coverage = "partial"
+	for _, id := range []string{"a", "b", "c", "d"} {
+		s.Rules = append(s.Rules, firewall.Rule{ID: id, Name: "rule" + id + "\x1b[31m", Direction: "inbound", Action: "allow", Source: "fixture"})
+	}
+	report.Firewall = &s
+	c := firewall.Explain(s, "tcp", report.Listeners[0].Local, nil, netip.Addr{})
+	report.Listeners[0].Firewall = &c
+	for _, width := range []int{0, 1, 16, 24, 80} {
+		var out bytes.Buffer
+		if err := writeAuditReportLimited(&out, report, width, 3); err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(out.String(), "\x1b") {
+			t.Fatal("unsafe policy text")
+		}
+		if width > 0 {
+			for _, line := range strings.Split(strings.TrimSuffix(out.String(), "\n"), "\n") {
+				if len(line) > width {
+					t.Fatalf("width=%d line=%q", width, line)
+				}
+			}
+		} else if !strings.Contains(out.String(), "1 additional inbound candidates") {
+			t.Fatal("omitted rules not explained")
+		}
+	}
+	var out bytes.Buffer
+	if err := writeAuditReportLimited(&out, report, 0, 0); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "ruled") || strings.Contains(out.String(), "additional inbound") {
+		t.Fatal("all-rule mode omitted records")
 	}
 }

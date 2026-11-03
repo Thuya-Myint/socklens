@@ -7,18 +7,30 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net/netip"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/Thuya-Myint/socklens/internal/audit"
+	"github.com/Thuya-Myint/socklens/internal/firewall"
 	"github.com/Thuya-Myint/socklens/internal/platform"
 	"github.com/Thuya-Myint/socklens/internal/terminal"
 )
 
 func auditCommand(ctx context.Context, args []string, out, errOut io.Writer, list func() ([]platform.Socket, error)) int {
+	return auditWithFirewall(ctx, args, out, errOut, list, platform.CollectFirewall)
+}
+
+type firewallCollector func(context.Context, []platform.Socket) firewall.Snapshot
+
+func auditWithFirewall(ctx context.Context, args []string, out, errOut io.Writer, list func() ([]platform.Socket, error), collect firewallCollector) int {
 	fs := newCommandFlags("audit", errOut)
 	opts := addSocketFlags(fs)
+	includeFirewall := fs.Bool("firewall", true, "collect read-only local firewall context; false keeps socket-only audit")
+	peerValue := fs.String("peer", "", "numeric peer IP for candidate policy filtering; no connection is made")
+	policyTimeout := fs.Duration("firewall-timeout", 20*time.Second, "total firewall query deadline (1s to 2m)")
+	ruleLimit := fs.Int("rule-limit", 3, "maximum candidate rules shown per direction per listener; 0 shows all (JSON always includes all)")
 	if err := parseCommandFlags(fs, args, errOut); err != nil {
 		if err == flag.ErrHelp {
 			return 0
@@ -27,6 +39,29 @@ func auditCommand(ctx context.Context, args []string, out, errOut io.Writer, lis
 	}
 	if err := opts.validate(fs); err != nil {
 		return fail(errOut, err)
+	}
+	var peer netip.Addr
+	peerSupplied := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "peer" {
+			peerSupplied = true
+		}
+	})
+	if peerSupplied {
+		var err error
+		peer, err = firewall.ParsePeer(*peerValue)
+		if err != nil {
+			return fail(errOut, err)
+		}
+		if !*includeFirewall {
+			return fail(errOut, fmt.Errorf("--peer requires firewall collection; remove --firewall=false"))
+		}
+	}
+	if *policyTimeout < time.Second || *policyTimeout > 2*time.Minute {
+		return fail(errOut, fmt.Errorf("firewall-timeout must be between 1s and 2m"))
+	}
+	if *ruleLimit < 0 || *ruleLimit > 10000 {
+		return fail(errOut, fmt.Errorf("rule-limit must be between 0 and 10000"))
 	}
 	if ctx.Err() != nil {
 		return auditStopped(ctx, errOut)
@@ -49,13 +84,40 @@ func auditCommand(ctx context.Context, args []string, out, errOut io.Writer, lis
 	if err != nil {
 		return fail(errOut, err)
 	}
+	if *includeFirewall {
+		policyCtx, cancel := context.WithTimeout(ctx, *policyTimeout)
+		snapshot := collect(policyCtx, rows)
+		if policyCtx.Err() != nil {
+			snapshot.Notes = append(snapshot.Notes, "Firewall collection deadline/cancellation: "+policyCtx.Err().Error())
+			snapshot.Coverage = "partial"
+			readSource := false
+			for _, source := range snapshot.Sources {
+				if source.Status == "read" {
+					readSource = true
+				}
+			}
+			if !readSource {
+				snapshot.Coverage = "unknown"
+			}
+		}
+		cancel()
+		if ctx.Err() != nil {
+			return auditStopped(ctx, errOut)
+		}
+		report.Firewall = &snapshot
+		for i := range report.Listeners {
+			listener := &report.Listeners[i]
+			context := firewall.Explain(snapshot, listener.Protocol, listener.Local, listener.PIDs, peer)
+			listener.Firewall = &context
+		}
+	}
 	if opts.json {
 		encoder := json.NewEncoder(out)
 		encoder.SetIndent("", "  ")
 		if err := encoder.Encode(report); err != nil {
 			return fail(errOut, err)
 		}
-	} else if err := writeAuditReport(out, report, terminal.Width(out)); err != nil {
+	} else if err := writeAuditReportLimited(out, report, terminal.Width(out), *ruleLimit); err != nil {
 		return fail(errOut, err)
 	}
 	return 0
@@ -78,6 +140,9 @@ func auditText(value string) string {
 }
 
 func writeAuditReport(out io.Writer, report audit.Report, columns int) error {
+	return writeAuditReportLimited(out, report, columns, 3)
+}
+func writeAuditReportLimited(out io.Writer, report audit.Report, columns, ruleLimit int) error {
 	if err := writeFolded(out, terminal.Heading, "Local listener audit | "+report.Timestamp.Format(time.RFC3339), columns); err != nil {
 		return err
 	}
@@ -103,6 +168,27 @@ func writeAuditReport(out io.Writer, report audit.Report, columns int) error {
 		}
 		_, err := fmt.Fprintf(out, "  %s: %s\n", label, value)
 		return err
+	}
+	if report.Firewall != nil {
+		policy := report.Firewall
+		if err := field("Firewall", policy.Coverage+" coverage; candidate rules only; effective decision unknown"); err != nil {
+			return err
+		}
+		for _, source := range policy.Sources {
+			if err := field("Source", source.Name+": "+source.Status+"; "+source.Detail); err != nil {
+				return err
+			}
+		}
+		for _, profile := range policy.Profiles {
+			if err := field("Profile", profile.Name+" | enabled="+profile.Enabled+" | default in="+profile.Inbound+" out="+profile.Outbound+" | "+profile.Detail); err != nil {
+				return err
+			}
+		}
+		for _, iface := range policy.Interfaces {
+			if err := field("Interface", iface.Name+" | "+strings.Join(iface.Addresses, ", ")+" | profile="+iface.Profile); err != nil {
+				return err
+			}
+		}
 	}
 	for _, listener := range report.Listeners {
 		if _, err := fmt.Fprintln(out); err != nil {
@@ -163,6 +249,68 @@ func writeAuditReport(out io.Writer, report audit.Report, columns int) error {
 				}
 			}
 			if err := field("Next step", finding.Recommendation); err != nil {
+				return err
+			}
+		}
+		if listener.Firewall != nil {
+			policy := listener.Firewall
+			if err := field("Local IPs", strings.Join(policy.LocalAddresses, ", ")); err != nil {
+				return err
+			}
+			if policy.Peer != "" {
+				if err := field("Peer", policy.Peer+" | "+policy.PeerCompatibility); err != nil {
+					return err
+				}
+			}
+			for _, direction := range []struct {
+				name string
+				data firewall.Direction
+			}{{"Inbound", policy.Inbound}, {"Outbound", policy.Outbound}} {
+				if err := field(direction.name, direction.data.Assessment+" | "+direction.data.Summary); err != nil {
+					return err
+				}
+				for i, candidate := range direction.data.Rules {
+					if ruleLimit > 0 && i >= ruleLimit {
+						if err := field("More rules", fmt.Sprintf("%d additional %s candidates; use --rule-limit 0 or --json to view all.", len(direction.data.Rules)-i, strings.ToLower(direction.name))); err != nil {
+							return err
+						}
+						break
+					}
+					rule := candidate.Rule
+					if err := field("Rule", strings.ToUpper(rule.Action)+" "+rule.Name+" | "+candidate.Match+" | "+rule.Source+" #"+rule.ID); err != nil {
+						return err
+					}
+					if err := field("Ports", fmt.Sprintf("protocol=%v local=%v remote=%v", rule.Protocols, rule.LocalPorts, rule.RemotePorts)); err != nil {
+						return err
+					}
+					if err := field("Addresses", fmt.Sprintf("local=%v remote=%v", rule.LocalAddresses, rule.RemoteAddresses)); err != nil {
+						return err
+					}
+					if rule.Program != "" {
+						if err := field("Program", rule.Program); err != nil {
+							return err
+						}
+					}
+					if err := field("Applies if", "profile="+rule.Profiles+" | interfaces="+rule.Interfaces+" | "+strings.Join(rule.Conditions, "; ")); err != nil {
+						return err
+					}
+					if rule.Raw != "" {
+						if err := field("Raw rule", rule.Raw); err != nil {
+							return err
+						}
+					}
+					for _, reason := range candidate.Reasons {
+						if err := field("Limit", reason); err != nil {
+							return err
+						}
+					}
+				}
+			}
+		}
+	}
+	if report.Firewall != nil {
+		for _, note := range report.Firewall.Notes {
+			if err := writeFolded(out, terminal.Muted, auditText(note), columns); err != nil {
 				return err
 			}
 		}

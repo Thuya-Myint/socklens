@@ -1,7 +1,8 @@
 # Local listener audit
 
 Available in v0.6.0. This command reads the current local socket tables and explains
-binding scope. It does not perform network probes or service/vulnerability tests.
+binding scope. v0.7.0 adds read-only firewall context and peer-specific candidate
+filtering. It does not perform network probes or service/vulnerability tests.
 
 ## Commands and filters
 
@@ -23,6 +24,19 @@ not expose connection state, so Windows UDP observations are shown as bound.
 The command reads one snapshot. Process metadata can be unavailable or partial
 because of permissions or changes during collection. WSL2 observes its Linux
 environment. Containers and network namespaces limit the environment visible.
+
+## Firewall context (v0.7.0)
+
+Firewall queries are enabled by default. Use --firewall=false to skip them.
+--peer IP filters candidate rules by a numeric unicast address; it requires
+firewall collection and does not contact the peer. --firewall-timeout defaults
+to 20s (1s–2m). --rule-limit defaults to 3 candidates per direction per listener
+in text; 0 displays all, while JSON always contains all collected candidates.
+
+See the [firewall reference](firewall.md) for collectors, matching, uncertainty,
+JSON fields, conditions, and examples. These options combine with the socket
+filters. An inaccessible firewall source does not erase the socket snapshot:
+it produces partial/unknown coverage and a reason. Cancellation still exits 130.
 
 ## Binding scopes and rules
 
@@ -117,7 +131,7 @@ printed on discovery failure; the error goes to standard error and exit code 1.
 
 | Field | Meaning |
 | --- | --- |
-| schema_version | Integer 1 for this initial schema |
+| schema_version | Integer 1; v0.7.0 adds optional firewall fields |
 | timestamp | UTC snapshot analysis time |
 | scope | local |
 | external_reachability | not-tested |
@@ -127,7 +141,9 @@ printed on discovery failure; the error goes to standard error and exit code 1.
 
 Each listener has protocol, local, state, optional socket_id, address_family,
 binding_scope, pids, processes, process_visibility, optional service_hint, and
-findings. Processes contain lowercase pid and name fields in this new report;
+findings. Since v0.7.0, an optional firewall context is attached to each listener
+and the report includes the collection snapshot. --firewall=false omits these
+additive fields. Processes contain lowercase pid and name fields in this report;
 existing list/inspect JSON formats are unchanged.
 
 process_visibility is observed when all reported PIDs have names, partial when
@@ -154,7 +170,8 @@ and color handling follows the global --color option. JSON and its diagnostics
 remain color-free. Empty results and information labels do not imply safety.
 
 No network connection or daily update worker is started by audit, even if daily
-notices have been enabled. Runtime dependencies remain Go standard-library-only.
+notices have been enabled. The Go module has no external dependencies. Policy
+enrichment uses local OS utilities with explicit missing-tool/permission status.
 
 ## References and scope
 

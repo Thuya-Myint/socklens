@@ -1,41 +1,52 @@
-# SockLens v0.6.1
+# SockLens v0.7.0
 
-Read the audit findings that need attention first, rather than scanning an
-alphabetical list of socket addresses.
-
-## Audit reading order
-
-1. Non-loopback listeners on a hinted database/administration service port.
-2. Other review items, currently wildcard bindings.
-3. Other non-loopback specific-address bindings.
-4. Loopback bindings.
-
-Wildcard bindings lead within the first group. Ties use numeric port, protocol,
-and numeric address, followed by deterministic socket/owner metadata. Port 80
-therefore appears before 443. Review findings also precede information within a
-record. Both text and JSON use the same order; the report schema remains version 1.
-
-The text overview and command help explain the order. This is a reading priority,
-not a vulnerability score. Port hints remain unverified; a wildcard binding does
-not establish remote reachability, and a loopback binding is not a safety verdict.
-Finding levels, summary counts, filters, and exit codes are unchanged.
-
-## Try it
+Audit now adds read-only local firewall context and peer-specific candidate rule
+filtering across Windows, macOS, and Linux/WSL.
 
 ```sh
 socklens audit
-socklens audit --protocol udp
-socklens audit --json
-socklens audit --help
+socklens audit --port 5432 --peer 192.168.1.20
+socklens audit --protocol udp --json
+socklens audit --rule-limit 0
+socklens audit --firewall=false
 ```
 
-The v0.6.0 passive audit and Windows TCP discovery correction, and v0.5.2 Scoop
-junction update fix, remain included. Firewall rule collection, peer-specific
-policy analysis, and remote reachability tests are future work.
+## Included
+
+- Available firewall source status, profile/default settings, interface addresses,
+  and conditional inbound/outbound allow/block rule candidates.
+- Numeric peer IP filtering, protocol/port/address ranges, executable-path
+  restrictions, and explicit unknown conditions and binding-family compatibility.
+- Windows NetSecurity ActiveStore query and ordinary-user COM fallback.
+- Linux nftables JSON with iptables filter-table fallback; missing utilities and
+  permissions are reported. WSL coverage is for its own Linux namespace.
+- macOS Application Firewall settings/app rules and PF status/raw anchor rules.
+- No probes, elevation, firewall changes, or background update checks.
+- Partial/unknown coverage even when a source succeeds; all assessments remain
+  unknown and candidates conditional. No matching rules is not an allow/block
+  verdict. Service hints and the existing audit reading order remain unchanged.
+
+PF expressions, rule traversal/precedence, stateful replies, actual profile and
+interface applicability, service/package identity, third-party filters and other
+layers are not fully evaluated. This release is policy context, not a complete
+packet-filter simulator or remote reachability test.
+
+## Options and output
+
+--peer accepts one numeric unicast IP and requires firewall collection.
+--firewall=false retains socket-only audit and omits optional policy JSON fields.
+--firewall-timeout defaults to 20s (1s–2m). --rule-limit defaults to 3 candidates
+per direction per listener in text; 0 shows all. JSON always contains all collected
+candidates. Policy failures/deadlines retain the socket snapshot with a reason;
+Ctrl+C cancels the command. Text remains responsive and safely escaped.
+
+The report keeps schema_version 1 with additive optional firewall collection and
+per-listener fields. Existing discovery JSON formats remain unchanged. See the
+README and docs/firewall.md for every condition, option and interpretation limit.
 
 ## Upgrade
 
-On macOS and Linux, run socklens update, then socklens version.
+On macOS/Linux, run socklens update, then socklens version.
 On Windows v0.5.2 or newer:
 
 ```powershell
@@ -43,20 +54,23 @@ socklens update
 socklens update --status
 ```
 
-Wait for completed status, then run socklens version. Expected version: v0.6.1.
-Windows Scoop users still on v0.5.0/v0.5.1 need scoop update followed by
-scoop update socklens once to bypass their installed updater's junction bug.
-v0.4.0 and older need one initial package-manager or binary-installer upgrade.
+Wait for completed status, then run socklens version. Expected: v0.7.0.
+Windows Scoop v0.5.0/v0.5.1 needs scoop update followed by scoop update socklens
+once to bypass its installed updater's junction bug. v0.4.0 and older need one
+initial package-manager/binary-installer upgrade.
 
-## Platforms and validation
+All macOS, Windows, and Linux amd64/arm64 binaries are included; Homebrew, Scoop,
+and Linux installer references update after required checks. No Go installation
+or source checkout is needed. Optional firewall enrichment uses local OS policy
+utilities; no additional Go modules or third-party SDKs were added.
 
-All macOS, Windows, and Linux amd64/arm64 binaries are included, with Homebrew,
-Scoop, and Linux installer promotion after successful checks. No Go installation
-or source checkout is needed.
+## Validation
 
-Mixed-protocol/binding ordering tests cover numeric ports and addresses,
-loopback hints, input-order independence, and review-before-information findings.
-CLI regressions check text and JSON order. Full native platform tests,
-Linux race/security checks, packaging, and installer smoke tests gate release.
+Peer CIDR/ranges, protocol/port direction, IPv4/IPv6/mapped compatibility,
+application identity uncertainty, overlapping allow/block candidates, parser
+failures, source permissions, deadlines, cancellation, JSON and narrow/escaped
+text are covered by regressions. Native read-only collectors, all-platform tests,
+Linux race/security checks, packaging and installer smoke tests gate release.
 
-Licensed under MIT.
+Remote reachability, service/TLS/authentication/CVE analysis and complete firewall
+policy evaluation remain future work. Licensed under MIT.

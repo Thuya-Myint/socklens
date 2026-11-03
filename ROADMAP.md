@@ -1,6 +1,6 @@
 # SockLens roadmap
 
-Status: audit implementation recorded on 2026-11-02; later work remains proposed. The v0.5.x line provides discovery, process controls, installers, and updates.
+Status: local audit and initial firewall context implemented through v0.7.0 on 2026-11-03; later work remains proposed. The v0.5.x line provides discovery, process controls, installers, and updates.
 This document describes future work, not completed commands or a release promise.
 The owner wants SockLens to grow from local port inspection into service exposure
 and security analysis, eventually including explicitly selected remote hosts.
@@ -81,7 +81,7 @@ Shell completion for Zsh, Bash, Fish, and PowerShell remains a usability candida
 It can follow this release if including it would delay the exposure/reliability
 work. Its proposed interface is socklens completion SHELL.
 
-## Possible v0.7.0: explicitly selected remote TCP checks
+## Next: explicitly selected remote TCP checks (version to be decided)
 
 A later command could connect to user-selected hosts and TCP ports, reporting
 what is reachable from the machine running SockLens. The first version should
@@ -116,3 +116,12 @@ assessment of every service from its open ports alone.
 
 - [NIST SP 800-115, Technical Guide to Information Security Testing and Assessment](https://csrc.nist.gov/pubs/sp/800/115/final): distinguishes port/service discovery and vulnerability assessment and discusses identification limitations.
 - [OWASP WSTG: Weak Transport Layer Security](https://owasp.github.io/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/09-Weak_Cryptography/01-Weak_Transport_Layer_Security): protocol and certificate checks are separate technical observations.
+
+## v0.7.0: initial read-only firewall context
+
+Implemented: available Windows/macOS/Linux policy sources, conditional inbound/
+outbound candidates, numeric peer filtering, coverage/permission evidence,
+profile/default settings, local addresses, query deadlines and optional socket-only
+mode. See docs/firewall.md. This is partial policy context; complete precedence,
+stateful traffic, custom-chain/PF traversal, service/package identity and other
+filtering providers remain unresolved. Remote reachability checks remain next.

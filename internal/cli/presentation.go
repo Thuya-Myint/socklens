@@ -51,7 +51,7 @@ func ParseColorArgs(args []string) ([]string, string, error) {
 }
 func takesValue(name string) bool {
 	switch strings.TrimLeft(name, "-") {
-	case "port", "pid", "protocol", "interval", "count", "until", "timeout":
+	case "port", "pid", "protocol", "interval", "count", "until", "timeout", "peer", "firewall-timeout", "rule-limit":
 		return true
 	}
 	return false
@@ -99,7 +99,9 @@ func newCommandFlags(command string, out io.Writer) *flag.FlagSet {
 			fmt.Fprintln(out, `
 Explains local TCP listeners and bound/unconnected UDP sockets.
 Filters combine: --port PORT, --protocol tcp|udp, --pid PID.
-No probes or background update checks run during audit.
+Read-only firewall context is included by default; --firewall=false skips it.
+--peer filters candidates by numeric IP; it does not send traffic.
+No probes, elevation, firewall changes, or background update checks run during audit.
 Review items are configuration questions, not confirmed vulnerabilities.
 Reading order: non-loopback service-port hints, other review items,
 other specific bindings, then loopback. Hints are unverified, not a severity score.
@@ -109,6 +111,8 @@ Examples:
   socklens audit --port 8080
   socklens audit --protocol tcp --json
   socklens audit --pid 12345
+  socklens audit --port 5432 --peer 192.168.1.20
+  socklens audit --rule-limit 0
 
 Exit 0 means the audit completed, including when review items exist.
 External reachability, authentication, TLS, and vulnerabilities are not tested.`)

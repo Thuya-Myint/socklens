@@ -8,6 +8,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/Thuya-Myint/socklens/internal/firewall"
 	"github.com/Thuya-Myint/socklens/internal/platform"
 )
 
@@ -34,17 +35,18 @@ type ServiceHint struct {
 }
 
 type Listener struct {
-	Protocol          string       `json:"protocol"`
-	Local             string       `json:"local"`
-	State             string       `json:"state"`
-	SocketID          string       `json:"socket_id,omitempty"`
-	AddressFamily     string       `json:"address_family"`
-	BindingScope      string       `json:"binding_scope"`
-	PIDs              []int        `json:"pids"`
-	Processes         []Process    `json:"processes"`
-	ProcessVisibility string       `json:"process_visibility"`
-	ServiceHint       *ServiceHint `json:"service_hint,omitempty"`
-	Findings          []Finding    `json:"findings"`
+	Firewall          *firewall.Context `json:"firewall,omitempty"`
+	Protocol          string            `json:"protocol"`
+	Local             string            `json:"local"`
+	State             string            `json:"state"`
+	SocketID          string            `json:"socket_id,omitempty"`
+	AddressFamily     string            `json:"address_family"`
+	BindingScope      string            `json:"binding_scope"`
+	PIDs              []int             `json:"pids"`
+	Processes         []Process         `json:"processes"`
+	ProcessVisibility string            `json:"process_visibility"`
+	ServiceHint       *ServiceHint      `json:"service_hint,omitempty"`
+	Findings          []Finding         `json:"findings"`
 }
 
 type Summary struct {
@@ -56,13 +58,14 @@ type Summary struct {
 }
 
 type Report struct {
-	SchemaVersion        int        `json:"schema_version"`
-	Timestamp            time.Time  `json:"timestamp"`
-	Scope                string     `json:"scope"`
-	ExternalReachability string     `json:"external_reachability"`
-	Summary              Summary    `json:"summary"`
-	Listeners            []Listener `json:"listeners"`
-	Notes                []string   `json:"notes"`
+	Firewall             *firewall.Snapshot `json:"firewall,omitempty"`
+	SchemaVersion        int                `json:"schema_version"`
+	Timestamp            time.Time          `json:"timestamp"`
+	Scope                string             `json:"scope"`
+	ExternalReachability string             `json:"external_reachability"`
+	Summary              Summary            `json:"summary"`
+	Listeners            []Listener         `json:"listeners"`
+	Notes                []string           `json:"notes"`
 }
 
 // Analyze is a pure snapshot transformation. It neither probes sockets nor

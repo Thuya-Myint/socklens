@@ -151,7 +151,7 @@ also remains plain. Text layouts are intended for people; use --json for scripts
 | updates | Enable, disable, or view daily update notices |
 | list | List local TCP/UDP sockets |
 | inspect | Inspect a local port |
-| audit | Explain local listener bindings and configuration review items |
+| audit | Explain local listener bindings and relevant firewall rule candidates |
 | watch | Monitor sockets or changes |
 | wait | Wait for matching sockets to appear or disappear |
 | terminate | Preview or confirm process termination |
@@ -390,6 +390,9 @@ socklens audit --port 8080
 socklens audit --protocol tcp
 socklens audit --pid 12345
 socklens audit --protocol tcp --port 5432 --json
+socklens audit --port 5432 --peer 192.168.1.20
+socklens audit --firewall=false
+socklens audit --rule-limit 0
 socklens audit --color never
 socklens audit --help
 ```
@@ -402,6 +405,10 @@ Replace 12345 with an actual observed PID. All supplied filters combine.
 | --protocol tcp or --protocol udp | Both | Filter by transport protocol |
 | --pid PID | Any | Filter by an observed positive process ID |
 | --json | Off | Return one versioned JSON report with summary, listeners, findings, and limitations |
+| --peer IP | None | Filter firewall candidates for a numeric unicast peer IP; never contacts that peer |
+| --firewall BOOL | true | Read local firewall context; use --firewall=false for socket-only output |
+| --firewall-timeout DURATION | 20s | Total local policy query deadline, from 1s to 2m |
+| --rule-limit N | 3 | Maximum rules displayed per listener per direction; 0 shows all; JSON always includes all candidates |
 | -h, --help | — | Show audit options and examples |
 
 Audit always selects listeners/bound UDP sockets, so it has no --listening option.
@@ -424,10 +431,27 @@ reported as not tested. Firewall rules, routing, NAT, containers, and network
 namespaces can change actual reachability. UDP observations do not prove a
 responding service; Windows does not expose UDP connection state in its table.
 
-Audit is passive and works offline: it reads local tables without opening
-connections, probing services, looking up DNS names, downloading vulnerability
-data, or scheduling background update checks. Authentication, TLS, application
-health, and CVEs are not tested. It does not modify services or firewall rules.
+From v0.7.0, audit also reads available local firewall policy. It shows collection
+coverage, source errors, interface addresses, profile/default settings, and
+conditional inbound/outbound rule candidates with protocol, local/remote ports,
+IP ranges, application and other restrictions. Allow and block candidates can
+coexist; applicability and precedence remain unresolved. --peer filters numeric
+address conditions; it is not a remote connection test. No candidates does not
+mean allowed or blocked. An IPv4 peer is not assumed to reach an IPv6 wildcard.
+
+Windows uses built-in PowerShell read-only policy queries, with a COM fallback
+when bulk filters are denied. Linux uses available nftables or iptables-save
+utilities; missing tools/permissions give explicit unknown coverage. macOS reads
+Application Firewall and PF; PF syntax is preserved for review rather than fully
+evaluated. Coverage is partial even after successful queries. WSL sees its own
+Linux namespace, not the host Windows firewall. Third-party filters and other
+layers may change the outcome. No elevation or firewall changes are attempted.
+
+Audit is passive and works offline: no service probes, DNS/CVE lookups, remote
+connections, or background update checks. --firewall=false skips policy queries;
+--peer requires firewall collection. Authentication, TLS, application health, and
+CVEs are not tested. The executable is built with the Go standard library only;
+Go is not required to run it. Firewall enrichment uses the local OS tools above.
 
 Text records adapt to terminal width and use normal color controls. JSON remains
 color-free. A completed audit exits 0 even when review items exist; errors exit 1,
@@ -579,7 +603,7 @@ Protected system PIDs, SockLens itself, and processes owned by another user are 
 
 list and inspect produce a JSON array. Each socket includes Protocol, Local, Remote, State, Inode, PIDs, and Processes. Each process entry includes PID and Name. Inode is a platform-specific identity value and may be empty.
 
-watch emits newline-delimited records; wait emits one result on success. audit emits one report object with schema_version, timestamp, scope, external_reachability, summary, listeners, and notes. JSON strings escape control characters in process names. Existing discovery JSON schemas are unchanged.
+watch emits newline-delimited records; wait emits one result on success. audit emits one report object with schema_version, timestamp, scope, external_reachability, summary, listeners, and notes. Since v0.7.0, audit adds an optional top-level firewall collection object and per-listener firewall context; --firewall=false omits them. These are additive schema version 1 fields. JSON strings escape control characters in process names. Existing discovery JSON schemas are unchanged.
 
 ## Exit codes
 

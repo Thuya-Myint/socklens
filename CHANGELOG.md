@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.7.0 — 2026-11-03
+
+- Read-only local firewall context in audit on Windows, macOS, Linux and WSL.
+- Numeric --peer filtering, binding-family explanations and actual interface addresses.
+- Conditional inbound/outbound rule candidates, IP/port ranges, application restrictions and source/profile evidence.
+- Explicit partial/unknown coverage, source failures, ambiguous rules and no final reachability verdict.
+- Windows ordinary-user COM fallback when bulk NetSecurity filters are denied.
+- --firewall=false, bounded query deadlines and text rule limits; additive JSON fields.
+- Policy/parser/CLI regressions and native read-only collection checks across platforms.
+
 ## v0.6.1 — 2026-11-02
 
 - Audit reading priority puts non-loopback service-port hints and other review items before information.
