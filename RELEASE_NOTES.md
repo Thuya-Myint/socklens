@@ -1,48 +1,38 @@
-# SockLens v0.7.0
+# SockLens v0.7.1
 
-Audit now adds read-only local firewall context and peer-specific candidate rule
-filtering across Windows, macOS, and Linux/WSL.
+Audit output is easier to scan, with concise text by default and full detail
+available on demand.
 
 ```sh
 socklens audit
-socklens audit --port 5432 --peer 192.168.1.20
-socklens audit --protocol udp --json
-socklens audit --rule-limit 0
-socklens audit --firewall=false
+socklens audit --port 8080
+socklens audit --port 8080 --details
+socklens audit --details --rule-limit 0
+socklens audit --port 8080 --json
 ```
 
 ## Included
 
-- Available firewall source status, profile/default settings, interface addresses,
-  and conditional inbound/outbound allow/block rule candidates.
-- Numeric peer IP filtering, protocol/port/address ranges, executable-path
-  restrictions, and explicit unknown conditions and binding-family compatibility.
-- Windows NetSecurity ActiveStore query and ordinary-user COM fallback.
-- Linux nftables JSON with iptables filter-table fallback; missing utilities and
-  permissions are reported. WSL coverage is for its own Linux namespace.
-- macOS Application Firewall settings/app rules and PF status/raw anchor rules.
-- No probes, elevation, firewall changes, or background update checks.
-- Partial/unknown coverage even when a source succeeds; all assessments remain
-  unknown and candidates conditional. No matching rules is not an allow/block
-  verdict. Service hints and the existing audit reading order remain unchanged.
+- A short overview with source coverage, available network profiles, and default
+  policy configuration. Source failures remain visible, including fallback use.
+- Combined process/PID details and readable bindings, findings and next steps.
+- Conditional inbound/outbound rule counts and short rule summaries showing
+  protocol, ports, IP restrictions and application/profile/interface scope.
+- --details for full evidence, source/profile/interface metadata, rule IDs,
+  restrictions, raw policy, complete program paths and interpretation notes.
+- Consolidated explanations instead of repeating them for every candidate.
+- Unresolved restrictions stay explicit. Allow/block candidates remain conditional;
+  no candidates does not imply permission or denial. Profile values are observed
+  configuration, not a complete effective policy or remote reachability result.
 
-PF expressions, rule traversal/precedence, stateful replies, actual profile and
-interface applicability, service/package identity, third-party filters and other
-layers are not fully evaluated. This release is policy context, not a complete
-packet-filter simulator or remote reachability test.
+The text rule limit still defaults to 3 per direction per listener. Use
+--details --rule-limit 0 to display all candidates in full. JSON always retains
+all collected candidate data and is unaffected by either text display option.
+No JSON schema, collector, candidate matching, finding level, reading priority,
+update preference or process termination behavior changes are introduced.
 
-## Options and output
-
---peer accepts one numeric unicast IP and requires firewall collection.
---firewall=false retains socket-only audit and omits optional policy JSON fields.
---firewall-timeout defaults to 20s (1s–2m). --rule-limit defaults to 3 candidates
-per direction per listener in text; 0 shows all. JSON always contains all collected
-candidates. Policy failures/deadlines retain the socket snapshot with a reason;
-Ctrl+C cancels the command. Text remains responsive and safely escaped.
-
-The report keeps schema_version 1 with additive optional firewall collection and
-per-listener fields. Existing discovery JSON formats remain unchanged. See the
-README and docs/firewall.md for every condition, option and interpretation limit.
+Both text views wrap to terminal width, follow normal color settings, and escape
+untrusted strings. The Go implementation remains standard-library-only.
 
 ## Upgrade
 
@@ -54,23 +44,25 @@ socklens update
 socklens update --status
 ```
 
-Wait for completed status, then run socklens version. Expected: v0.7.0.
+Wait for completed status, then run socklens version. Expected: v0.7.1.
 Windows Scoop v0.5.0/v0.5.1 needs scoop update followed by scoop update socklens
 once to bypass its installed updater's junction bug. v0.4.0 and older need one
 initial package-manager/binary-installer upgrade.
 
-All macOS, Windows, and Linux amd64/arm64 binaries are included; Homebrew, Scoop,
+All macOS, Windows, and Linux amd64/arm64 binaries are included. Homebrew, Scoop,
 and Linux installer references update after required checks. No Go installation
-or source checkout is needed. Optional firewall enrichment uses local OS policy
-utilities; no additional Go modules or third-party SDKs were added.
+or source checkout is needed.
 
 ## Validation
 
-Peer CIDR/ranges, protocol/port direction, IPv4/IPv6/mapped compatibility,
-application identity uncertainty, overlapping allow/block candidates, parser
-failures, source permissions, deadlines, cancellation, JSON and narrow/escaped
-text are covered by regressions. Native read-only collectors, all-platform tests,
+Regressions cover concise versus detailed evidence visibility, unchanged JSON,
+conditional labels, unknown restrictions, program-path summaries, rule limits,
+output errors, escaping and narrow terminal layouts. Native platform tests,
 Linux race/security checks, packaging and installer smoke tests gate release.
+A real Windows listener preview also verified both views and local policy context.
 
-Remote reachability, service/TLS/authentication/CVE analysis and complete firewall
-policy evaluation remain future work. Licensed under MIT.
+Firewall interpretation remains partial; macOS PF fields are preserved as raw
+policy, Linux queries depend on available tools/permissions, and remote
+reachability and service/TLS/vulnerability testing remain future work.
+
+Licensed under MIT.

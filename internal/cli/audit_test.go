@@ -376,3 +376,125 @@ func TestAuditPolicyRenderingLimitsAndEscaping(t *testing.T) {
 		t.Fatal("all-rule mode omitted records")
 	}
 }
+
+func TestAuditConciseAndDetailedViews(t *testing.T) {
+	report, err := audit.Analyze(auditFixture(), time.Date(2026, 11, 4, 9, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy := firewall.Empty()
+	policy.Coverage = "partial"
+	policy.Sources = []firewall.Source{{Name: "windows-policy-com", Status: "read", Detail: "FULL_SOURCE_METADATA"}}
+	policy.Profiles = []firewall.Profile{{Name: "Private", Enabled: "True", Inbound: "block", Outbound: "allow", Detail: "FULL_PROFILE_METADATA"}}
+	policy.Interfaces = []firewall.Interface{{Name: "ethernet", Addresses: []string{"192.168.1.2/24"}}}
+	policy.Notes = []string{"FULL_COLLECTION_NOTE"}
+	policy.Rules = []firewall.Rule{{ID: "RULE_IDENTIFIER", Name: "Example database rule", Source: "windows-policy-com", Direction: "inbound", Action: "allow", Family: "ipv4", Protocols: []string{"6"}, LocalPorts: []string{"5432"}, RemotePorts: []string{"Any"}, LocalAddresses: []string{"Any"}, RemoteAddresses: []string{"192.168.1.0/24"}, Program: `C:\Apps\database\server.exe`, Profiles: "Private", Conditions: []string{"FULL_SECURITY_RESTRICTION"}, Raw: "FULL_RAW_POLICY"}}
+	report.Firewall = &policy
+	// No paths: keep the rule conditional instead of guessing process identity.
+	for i := range report.Listeners {
+		l := &report.Listeners[i]
+		context := firewall.Explain(policy, l.Protocol, l.Local, l.PIDs, netip.MustParseAddr("192.168.1.20"))
+		l.Firewall = &context
+	}
+	var compact, details bytes.Buffer
+	if err := writeAuditReportMode(&compact, report, 0, 3, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeAuditReportMode(&details, report, 0, 3, true); err != nil {
+		t.Fatal(err)
+	}
+	for _, required := range []string{"REVIEW TCP 0.0.0.0:5432", "untrusted\\x1b[31m\\nname", "coverage", "decisions unknown", "[conditional]", "local port=5432", "remote=192.168.1.0/24", "server.exe (path in --details)", "--details", "No candidates does not mean allowed or blocked"} {
+		if !strings.Contains(compact.String(), required) {
+			t.Fatalf("concise view lost %q: %s", required, compact.String())
+		}
+	}
+	for _, fullOnly := range []string{"FULL_SOURCE_METADATA", "FULL_PROFILE_METADATA", "FULL_COLLECTION_NOTE", "FULL_SECURITY_RESTRICTION", "FULL_RAW_POLICY", "RULE_IDENTIFIER"} {
+		if strings.Contains(compact.String(), fullOnly) || !strings.Contains(details.String(), fullOnly) {
+			t.Fatalf("detail visibility incorrect for %q", fullOnly)
+		}
+	}
+	if compact.Len() >= details.Len() {
+		t.Fatal("concise view is not shorter than the detailed report")
+	}
+	for _, mode := range []bool{false, true} {
+		if err := writeAuditReportMode(brokenWriter{}, report, 80, 3, mode); err == nil {
+			t.Fatal("output error ignored")
+		}
+	}
+}
+
+func TestAuditDetailsDoesNotChangeJSON(t *testing.T) {
+	var first audit.Report
+	for _, details := range []bool{false, true} {
+		args := []string{"--json"}
+		if details {
+			args = append(args, "--details")
+		}
+		var out, stderr bytes.Buffer
+		if code := auditTestCommand(context.Background(), args, &out, &stderr, func() ([]platform.Socket, error) { return auditFixture(), nil }); code != 0 {
+			t.Fatal(code, &stderr)
+		}
+		var report audit.Report
+		if err := json.Unmarshal(out.Bytes(), &report); err != nil {
+			t.Fatal(err)
+		}
+		report.Timestamp = time.Time{}
+		if !details {
+			first = report
+		} else {
+			a, _ := json.Marshal(first)
+			b, _ := json.Marshal(report)
+			if string(a) != string(b) {
+				t.Fatal("presentation flag changed structured data")
+			}
+		}
+	}
+}
+
+func TestAuditCompactRuleValuesAndPaths(t *testing.T) {
+	if got := auditRuleValues(nil, false); got != "unresolved" {
+		t.Fatal("unknown restriction presented as any", got)
+	}
+	if got := auditRuleValues([]string{"6", "17", "256"}, true); got != "TCP,UDP,any" {
+		t.Fatal(got)
+	}
+	if got := auditProgramName(`/Applications/Example.app/Contents/MacOS/example`); got != "example (path in --details)" {
+		t.Fatal(got)
+	}
+	if got := auditProgramName(`C:\Apps\example.exe`); got != "example.exe (path in --details)" {
+		t.Fatal(got)
+	}
+}
+
+func TestAuditBothViewsWrapUntrustedPolicyText(t *testing.T) {
+	report, err := audit.Analyze(auditFixture(), time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := firewall.Empty()
+	s.Coverage = "partial"
+	s.Sources = []firewall.Source{{Name: "source\x1b[31m", Status: "unavailable", Detail: "failed\nquery"}}
+	s.Profiles = []firewall.Profile{{Name: "profile\rname", Enabled: "see detail", Detail: "setting\x1b[31m"}}
+	s.Rules = []firewall.Rule{{ID: "id", Name: "rule\x1b[31m\nname", Direction: "both", Action: "allow", Source: "fixture", Conditions: []string{"condition\tvalue"}, Raw: "raw\x1b[31m\npolicy"}}
+	report.Firewall = &s
+	policy := firewall.Explain(s, "tcp", report.Listeners[0].Local, nil, netip.Addr{})
+	report.Listeners[0].Firewall = &policy
+	for _, details := range []bool{false, true} {
+		for _, width := range []int{0, 1, 8, 15, 16, 24, 80} {
+			var out bytes.Buffer
+			if err := writeAuditReportMode(&out, report, width, 3, details); err != nil {
+				t.Fatal(err)
+			}
+			if strings.ContainsAny(out.String(), "\x1b\r\t") {
+				t.Fatalf("untrusted control bytes reached view details=%v", details)
+			}
+			if width > 0 {
+				for _, line := range strings.Split(strings.TrimSuffix(out.String(), "\n"), "\n") {
+					if len(line) > width {
+						t.Fatalf("details=%v width=%d line=%q", details, width, line)
+					}
+				}
+			}
+		}
+	}
+}

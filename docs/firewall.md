@@ -27,6 +27,20 @@ all. JSON always includes every collected candidate. Rules that cannot be read
 or represented are covered by collection/interpretation limitations, not omitted
 under an implied complete result.
 
+## Concise text and full details (v0.7.1)
+
+Default text shows rule names/actions, conditional labels, protocol, local/remote
+ports and IP restrictions, and a short application/profile/interface scope.
+Program paths are abbreviated to basenames in the concise view, with instructions
+to view the full path. Empty restriction arrays are displayed as unresolved.
+Source/profile context and interpretation limits appear once per snapshot.
+
+--details adds full evidence, collector/profile/interface metadata, rule IDs,
+program paths, conditions, raw policy, and per-rule interpretation reasons.
+It does not change collection or candidate matching. Combine --details with
+--rule-limit 0 to show every candidate in full. JSON always retains all collected
+candidate data, regardless of either display option.
+
 ## What to read
 
 1. Collection coverage and source errors: partial means some context was read;

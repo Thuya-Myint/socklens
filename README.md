@@ -393,6 +393,8 @@ socklens audit --protocol tcp --port 5432 --json
 socklens audit --port 5432 --peer 192.168.1.20
 socklens audit --firewall=false
 socklens audit --rule-limit 0
+socklens audit --port 8080 --details
+socklens audit --details --rule-limit 0
 socklens audit --color never
 socklens audit --help
 ```
@@ -406,9 +408,10 @@ Replace 12345 with an actual observed PID. All supplied filters combine.
 | --pid PID | Any | Filter by an observed positive process ID |
 | --json | Off | Return one versioned JSON report with summary, listeners, findings, and limitations |
 | --peer IP | None | Filter firewall candidates for a numeric unicast peer IP; never contacts that peer |
-| --firewall BOOL | true | Read local firewall context; use --firewall=false for socket-only output |
+| --firewall=false | Collection enabled | Skip firewall queries and show socket-only output |
 | --firewall-timeout DURATION | 20s | Total local policy query deadline, from 1s to 2m |
 | --rule-limit N | 3 | Maximum rules displayed per listener per direction; 0 shows all; JSON always includes all candidates |
+| --details | Off | Show full evidence, metadata, rule restrictions, raw policy, and program paths; JSON is always complete |
 | -h, --help | — | Show audit options and examples |
 
 Audit always selects listeners/bound UDP sockets, so it has no --listening option.
@@ -452,6 +455,17 @@ connections, or background update checks. --firewall=false skips policy queries;
 --peer requires firewall collection. Authentication, TLS, application health, and
 CVEs are not tested. The executable is built with the Go standard library only;
 Go is not required to run it. Firewall enrichment uses the local OS tools above.
+
+From v0.7.1, text is concise by default: a short snapshot overview, combined
+process/PID details, findings and next steps, and conditional rule summaries.
+Profiles and source availability appear once per report; repeated caveats are
+consolidated. Unknown restrictions are labeled unresolved, rather than any.
+Program basenames are shown in summaries; --details includes their full paths.
+
+Use --details for full evidence, collector/profile/interface metadata, rule IDs,
+restrictions, raw policy, and interpretation notes. --rule-limit still applies;
+--details --rule-limit 0 shows every candidate in full. JSON retains all the
+structured evidence and candidate data regardless of --details or --rule-limit.
 
 Text records adapt to terminal width and use normal color controls. JSON remains
 color-free. A completed audit exits 0 even when review items exist; errors exit 1,

@@ -25,6 +25,26 @@ The command reads one snapshot. Process metadata can be unavailable or partial
 because of permissions or changes during collection. WSL2 observes its Linux
 environment. Containers and network namespaces limit the environment visible.
 
+## Concise and detailed text (v0.7.1)
+
+The default text view emphasizes process/PID, binding, findings, next steps,
+coverage, and conditional inbound/outbound rule summaries. Source/profile context
+appears once per snapshot. Program summaries show basenames with a prompt to
+view full paths; empty restriction arrays are labeled unresolved rather than any.
+
+```sh
+socklens audit --port 8080
+socklens audit --port 8080 --details
+socklens audit --details --rule-limit 0
+```
+
+--details shows full evidence, profile/interface metadata, rule IDs, restrictions,
+raw policy, program paths, and interpretation notes. The configured text rule
+limit still applies. --details --rule-limit 0 displays all candidates in full.
+The JSON data, finding levels, reading order and exit codes are unchanged by this
+presentation flag. Width wrapping, automatic color and safe escaping apply to
+both text views. Unknown source failures remain visible in the concise overview.
+
 ## Firewall context (v0.7.0)
 
 Firewall queries are enabled by default. Use --firewall=false to skip them.

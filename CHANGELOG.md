@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.7.1 — 2026-11-04
+
+- Concise audit text with combined process/PID details, short next steps, and conditional firewall rule summaries.
+- Consolidated profile/source context and interpretation notes reduce repeated log text.
+- --details restores full evidence, metadata, restrictions, program paths and raw policy; combine with --rule-limit 0 for all candidates.
+- Empty rule restrictions remain unresolved; JSON data, reading priority and collection behavior are preserved.
+- Both text views retain terminal wrapping, color controls, safe escaping and explicit coverage limits across platforms.
+
 ## v0.7.0 — 2026-11-03
 
 - Read-only local firewall context in audit on Windows, macOS, Linux and WSL.

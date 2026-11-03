@@ -100,6 +100,8 @@ func newCommandFlags(command string, out io.Writer) *flag.FlagSet {
 Explains local TCP listeners and bound/unconnected UDP sockets.
 Filters combine: --port PORT, --protocol tcp|udp, --pid PID.
 Read-only firewall context is included by default; --firewall=false skips it.
+Concise text is the default; --details shows full evidence and policy restrictions.
+JSON always includes the complete structured report, regardless of --details.
 --peer filters candidates by numeric IP; it does not send traffic.
 No probes, elevation, firewall changes, or background update checks run during audit.
 Review items are configuration questions, not confirmed vulnerabilities.
@@ -113,6 +115,7 @@ Examples:
   socklens audit --pid 12345
   socklens audit --port 5432 --peer 192.168.1.20
   socklens audit --rule-limit 0
+  socklens audit --port 8080 --details
 
 Exit 0 means the audit completed, including when review items exist.
 External reachability, authentication, TLS, and vulnerabilities are not tested.`)

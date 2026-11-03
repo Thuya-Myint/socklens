@@ -31,6 +31,7 @@ func auditWithFirewall(ctx context.Context, args []string, out, errOut io.Writer
 	peerValue := fs.String("peer", "", "numeric peer IP for candidate policy filtering; no connection is made")
 	policyTimeout := fs.Duration("firewall-timeout", 20*time.Second, "total firewall query deadline (1s to 2m)")
 	ruleLimit := fs.Int("rule-limit", 3, "maximum candidate rules shown per direction per listener; 0 shows all (JSON always includes all)")
+	details := fs.Bool("details", false, "show full evidence, firewall metadata, rule restrictions and raw policy (JSON always includes all)")
 	if err := parseCommandFlags(fs, args, errOut); err != nil {
 		if err == flag.ErrHelp {
 			return 0
@@ -117,7 +118,7 @@ func auditWithFirewall(ctx context.Context, args []string, out, errOut io.Writer
 		if err := encoder.Encode(report); err != nil {
 			return fail(errOut, err)
 		}
-	} else if err := writeAuditReportLimited(out, report, terminal.Width(out), *ruleLimit); err != nil {
+	} else if err := writeAuditReportMode(out, report, terminal.Width(out), *ruleLimit, *details); err != nil {
 		return fail(errOut, err)
 	}
 	return 0
@@ -143,6 +144,15 @@ func writeAuditReport(out io.Writer, report audit.Report, columns int) error {
 	return writeAuditReportLimited(out, report, columns, 3)
 }
 func writeAuditReportLimited(out io.Writer, report audit.Report, columns, ruleLimit int) error {
+	return writeAuditReportMode(out, report, columns, ruleLimit, false)
+}
+func writeAuditReportMode(out io.Writer, report audit.Report, columns, ruleLimit int, details bool) error {
+	if details {
+		return writeAuditReportDetailed(out, report, columns, ruleLimit)
+	}
+	return writeAuditReportCompact(out, report, columns, ruleLimit)
+}
+func writeAuditReportDetailed(out io.Writer, report audit.Report, columns, ruleLimit int) error {
 	if err := writeFolded(out, terminal.Heading, "Local listener audit | "+report.Timestamp.Format(time.RFC3339), columns); err != nil {
 		return err
 	}
