@@ -1,6 +1,6 @@
 # SockLens roadmap
 
-Status: local audit and initial firewall context implemented through v0.7.0 on 2026-11-03; later work remains proposed. The v0.5.x line provides discovery, process controls, installers, and updates.
+Status: local audit/owner improvements and explicit TCP probes implemented through v0.8.0 on 2026-11-04; later work remains proposed. The v0.5.x line provides discovery, process controls, installers, and updates.
 This document describes future work, not completed commands or a release promise.
 The owner wants SockLens to grow from local port inspection into service exposure
 and security analysis, eventually including explicitly selected remote hosts.
@@ -81,19 +81,17 @@ Shell completion for Zsh, Bash, Fish, and PowerShell remains a usability candida
 It can follow this release if including it would delay the exposure/reliability
 work. Its proposed interface is socklens completion SHELL.
 
-## Next: explicitly selected remote TCP checks (version to be decided)
+## v0.8.0: explicitly selected TCP reachability checks
 
-A later command could connect to user-selected hosts and TCP ports, reporting
-what is reachable from the machine running SockLens. The first version should
-accept explicit targets/ports and provide bounded concurrency, connection and
-total deadlines, cancellation, and JSON. Output must retain the actual resolved
-address used; DNS results and IPv4/IPv6 scope need explicit handling.
+Implemented: probe --host HOST --ports LIST, one-time DNS and numeric address
+pinning, IPv4/IPv6 family selection, bounded concurrency, per-attempt/total
+deadlines, cancellation/partial reports, JSON and explicit result classifications.
+See docs/probe.md. Tests use controlled dependencies and owned loopback fixtures.
 
-A successful connection supports "reachable from this client." A timeout alone
-does not establish "closed" or identify a firewall. Remote process IDs and owners
-are not available from an ordinary TCP connection. Existing local commands should
-keep their current meaning; active network work belongs to an explicit command.
-Remote checks are intended for systems the user owns or has permission to assess.
+Connected establishes TCP reachability from this client at that time. Refusal,
+timeout and other errors retain their actual limits; no service health, remote
+process identity, authentication/TLS or vulnerability verdict is inferred.
+Existing local commands keep their meaning and do not start network probes.
 
 ## Later: service and protocol security checks
 
@@ -124,4 +122,4 @@ outbound candidates, numeric peer filtering, coverage/permission evidence,
 profile/default settings, local addresses, query deadlines and optional socket-only
 mode. See docs/firewall.md. This is partial policy context; complete precedence,
 stateful traffic, custom-chain/PF traversal, service/package identity and other
-filtering providers remain unresolved. Remote reachability checks remain next.
+filtering providers remain unresolved. Explicit TCP reachability checks are now available in probe.

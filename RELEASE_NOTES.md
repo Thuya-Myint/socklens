@@ -1,52 +1,42 @@
-# SockLens v0.7.2
+# SockLens v0.8.0
 
-Audit now identifies more Windows socket owners, shows hosted service names when
-available, and explains communication scope in plain language on every platform.
+Test TCP reachability to an explicit host and selected ports with the new probe
+command, on Windows, macOS and Linux/WSL.
 
 ```sh
-socklens list --port 60817
-socklens audit --port 60817
-socklens audit --port 60817 --firewall=false
-socklens audit --port 60817 --details
-socklens audit --port 60817 --json
+socklens probe --host 127.0.0.1 --ports 8080
+socklens probe --host 192.168.1.20 --ports 80,443
+socklens probe --host localhost --ports 8080 --family ipv4
+socklens probe --host ::1 --ports 8080 --json
 ```
-
-Use a currently observed port. For a Windows service endpoint, output can show
-AppleMobileDeviceService.exe as the process and Apple Mobile Device Service as
-the separately observed hosted service, instead of just an unavailable name.
 
 ## Included
 
-- Native Windows Toolhelp executable-name fallback when preferred full-image
-  access fails. Discovery JSON fields remain the same; missing names may fill.
-- Read-only native Windows SCM service status queries for audit: service name,
-  display name, state, PID, own/shared-host type and source. Shared-host service
-  metadata does not identify which service owns a particular socket. Permissions
-  can omit services; no administrator prompt or service changes are attempted.
-- Shared macOS/Windows/Linux inbound TCP/UDP binding scope and outbound visibility.
-  Loopback describes local binding scope, not a firewall grant. UDP peers are not
-  invented; TCP listener output points to inspect for accepted connection rows.
-- Concise rule evidence related to an explicit known local port or observed full
-  process path. Broad/identity-unresolved rules stay in --details and JSON.
-- Collected Windows package/service/user/security restrictions remain unverified;
-  a process basename is never substituted for a full executable-path match.
-- Windows dotted subnet masks recognized for numeric peer filtering.
-- Additive schema 1 service_lookup/listener services and candidate relevance/
-  identity_conditions fields. All candidate data remains available in JSON.
+- Required --host and --ports, optional --family any/ipv4/ipv6.
+- One-time hostname resolution and numeric TCP4/TCP6 attempts per selected IP/port;
+  actual attempted addresses and available local/remote socket endpoints retained.
+- --connect-timeout (3s default, 100ms–30s), --timeout (15s total, 1s–5m), and
+  --concurrency (4 default, 1–32). Total timeout includes DNS and queued work.
+- Bounds of 64 distinct ports, 16 selected addresses and 256 total attempts;
+  oversized/invalid requests fail before connections, without silent truncation.
+- Connected, refused, timed-out, network-error, cancelled and not-attempted results.
+- Immediate connection close and no application payloads, banners, TLS, UDP,
+  automatic retries, remote PID guesses or background update checks.
+- Partial reports after cancellation or total deadline; responsive/color-controlled
+  text and one complete JSON report with schema version 1.
+- Exit 0 all connected; 2 unsuccessful/incomplete connections or total deadline;
+  1 input/DNS/planning/output failure; 130 interrupted.
 
-All firewall assessments remain conditional/unknown where the full decision
-cannot be established. Profiles, identity, precedence, other layers and external
-reachability are not fully evaluated. Related evidence is not permission.
---rule-limit 0 removes the selected view's display limit; use --details
---rule-limit 0 for every candidate. A supplied --peer is labeled requested,
-never an observed remote connection. No network probes or automatic elevation.
+A successful TCP connection establishes reachability from this client at that
+time. Application health, service identity and security are not established.
+Refusal may originate at target or intermediary. Timeouts do not identify a
+firewall or establish a closed port. Existing local/audit commands stay passive.
 
-## Platforms and upgrade
+All supported macOS, Windows and Linux amd64/arm64 binaries are included, with
+installer promotion after required checks. No Go installation or source checkout
+is needed and no external Go modules were added.
 
-All macOS, Windows and Linux amd64/arm64 binaries and installers are included.
-Windows gets OS-specific owner/service enrichment; macOS/Linux retain their
-native process discovery and share the new communication/output behavior.
-No external Go modules or new runtime utilities were added for owner/service lookup.
+## Upgrade
 
 On macOS/Linux run socklens update, then socklens version.
 On Windows v0.5.2 or newer:
@@ -56,21 +46,19 @@ socklens update
 socklens update --status
 ```
 
-Wait for completed status, then verify socklens version reports v0.7.2.
-Windows Scoop v0.5.0/v0.5.1 needs scoop update followed by scoop update socklens
-once. v0.4.0 and older need an initial package-manager/binary-installer upgrade.
+Wait for completed status, then verify socklens version reports v0.8.0 and run
+socklens probe --help. Windows Scoop v0.5.0/v0.5.1 needs scoop update followed by
+scoop update socklens once. v0.4.0 and older need an initial installer upgrade.
+
+See README and docs/probe.md for every option, JSON field, limit and example.
 
 ## Validation
 
-Tests cover missing-name fallback, native Windows process/service APIs, 32/64-bit
-service table bounds and UTF-16 strings, service-to-PID association, shared hosts,
-cancellation, escaping, protocol/binding summaries, dotted masks, candidate
-relevance and complete detail/JSON visibility. All-platform native/race/security,
-packaging and installer smoke checks gate release and promotion. The real Windows
-PID 8100 endpoint was checked for the recovered executable and service names.
-
-Termination identity/permissions remain unchanged. Service metadata is a
-best-effort observation, not verified executable identity or a vulnerability
-finding. Remote reachability and full policy evaluation remain future work.
+Tests cover input/target limits, one-time DNS/numeric pinning, mixed families,
+concurrency, refusal/error classification, cancellation/queued work, deadlines,
+connection closure and no payloads, output failures, escaping/layout/colors,
+JSON and exit codes. Real local IPv4/IPv6 listeners and refused ports are included
+in native Windows/macOS/Linux CI. Linux race/security, packaging and fresh
+installer checks gate publication and promotion.
 
 Licensed under MIT.

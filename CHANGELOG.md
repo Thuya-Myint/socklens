@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.8.0 — 2026-11-04
+
+- Explicit TCP probe command for one host and selected numeric ports, with IPv4/IPv6 and one-time DNS resolution.
+- Numeric address pinning, bounded concurrency, per-attempt/total deadlines, cancellation and immediate connection cleanup.
+- Connected/refused/timeout/network-error outcomes and explicit cancelled/not-attempted partial results.
+- Versioned JSON, responsive escaped/color-controlled output and script-friendly exit codes.
+- No application payloads, UDP probes, remote owner guesses or background update checks.
+- Native loopback/refusal and controlled DNS/concurrency/deadline regressions across Windows, macOS and Linux.
+
 ## v0.7.2 — 2026-11-04
 
 - Native Windows executable-name fallback fills missing names when full-image access is denied.

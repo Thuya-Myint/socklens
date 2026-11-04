@@ -51,7 +51,7 @@ func ParseColorArgs(args []string) ([]string, string, error) {
 }
 func takesValue(name string) bool {
 	switch strings.TrimLeft(name, "-") {
-	case "port", "pid", "protocol", "interval", "count", "until", "timeout", "peer", "firewall-timeout", "rule-limit":
+	case "port", "pid", "protocol", "interval", "count", "until", "timeout", "peer", "firewall-timeout", "rule-limit", "host", "ports", "family", "connect-timeout", "concurrency":
 		return true
 	}
 	return false
@@ -95,6 +95,25 @@ func newCommandFlags(command string, out io.Writer) *flag.FlagSet {
 		})
 		visible.PrintDefaults()
 		fmt.Fprintln(out, "  --color auto|always|never\n        terminal colors (default auto)")
+		if command == "probe" {
+			fmt.Fprintln(out, `
+Explicit TCP connection checks. One host is resolved once; each selected numeric
+IP/port pair is tested separately. No application payloads or UDP probes.
+Limits: 64 distinct ports, 16 selected addresses, 256 total attempts.
+--connect-timeout bounds each attempt; --timeout includes DNS and queued work.
+
+Examples:
+  socklens probe --host 127.0.0.1 --ports 8080
+  socklens probe --host localhost --ports 80,443 --family ipv4
+  socklens probe --host 192.168.1.20 --ports 80,443 --connect-timeout 2s --timeout 10s
+  socklens probe --host ::1 --ports 8080 --json
+
+Results: connected, refused, timed-out, network-error, cancelled, not-attempted.
+A timeout does not establish a closed port or identify a firewall.
+Ctrl+C returns a partial report. No background update check is scheduled.
+Exit: 0 all connected; 2 unsuccessful/incomplete connections or total deadline;
+1 invalid input, DNS/target planning, or output failure; 130 interrupted.`)
+		}
 		if command == "audit" {
 			fmt.Fprintln(out, `
 Explains local TCP listeners and bound/unconnected UDP sockets.

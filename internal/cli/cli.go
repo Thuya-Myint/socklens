@@ -16,10 +16,11 @@ import (
 	"github.com/Thuya-Myint/socklens/internal/terminal"
 
 	"github.com/Thuya-Myint/socklens/internal/platform"
+	"github.com/Thuya-Myint/socklens/internal/probe"
 	"github.com/Thuya-Myint/socklens/internal/update"
 )
 
-const help = `SockLens — inspect local TCP/UDP ports
+const help = `SockLens — inspect local ports and test TCP reachability
 
 Usage:
   socklens [--color auto|always|never] COMMAND [options]
@@ -29,6 +30,9 @@ Discover:
   inspect PORT   Inspect sockets on a local port
   audit          Explain listener bindings and local firewall context
   check          Check socket discovery on this machine
+
+Connect:
+  probe          Test TCP connections to an explicit host and ports
 
 Monitor:
   watch          Repeat snapshots; --changes shows only changes
@@ -47,6 +51,7 @@ About:
 Examples:
   socklens list --listening
   socklens audit --port 8080
+  socklens probe --host 127.0.0.1 --ports 8080
   socklens inspect --protocol tcp 8080
   socklens watch --changes --port 8080
   socklens wait --until present --listening --timeout 30s 8080
@@ -55,7 +60,7 @@ Examples:
 
 Options:
   --color MODE   auto (default), always, or never; NO_COLOR disables auto color
-  --json         Structured output for list, inspect, audit, watch, wait, update-check
+  --json         Structured output for list, inspect, audit, probe, watch, wait, update-check
   -h, --help     Command options, for example: socklens list --help
 
 Put options before PORT for inspect and wait. JSON output never includes colors.
@@ -116,6 +121,8 @@ func RunContext(ctx context.Context, args []string, in io.Reader, out, errOut io
 		return 0
 	case "list", "inspect":
 		return sockets(args[0], args[1:], out, errOut)
+	case "probe":
+		return probeCommand(ctx, args[1:], out, errOut, probe.Engine{})
 	case "audit":
 		return auditCommand(ctx, args[1:], out, errOut, platform.List)
 	case "watch":

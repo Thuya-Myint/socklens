@@ -1,6 +1,6 @@
 # SockLens
 
-Inspect local TCP/UDP ports, review listener exposure, see their processes, monitor changes, and terminate a process with confirmation. Available for macOS, Windows, Linux, and WSL2.
+Inspect local TCP/UDP ports, review listener exposure, test TCP reachability to selected hosts and ports, see processes, monitor changes, and terminate a process with confirmation. Available for macOS, Windows, Linux, and WSL2.
 
 ## Installation
 
@@ -152,6 +152,7 @@ also remains plain. Text layouts are intended for people; use --json for scripts
 | list | List local TCP/UDP sockets |
 | inspect | Inspect a local port |
 | audit | Explain local listener bindings and relevant firewall rule candidates |
+| probe | Test TCP reachability to one explicit host and selected ports |
 | watch | Monitor sockets or changes |
 | wait | Wait for matching sockets to appear or disappear |
 | terminate | Preview or confirm process termination |
@@ -172,6 +173,7 @@ For command-specific options:
 socklens list --help
 socklens inspect --help
 socklens audit --help
+socklens probe --help
 socklens watch --help
 socklens wait --help
 socklens terminate --help
@@ -180,7 +182,7 @@ socklens update --help
 socklens updates --help
 ```
 
-These nine commands also accept -h.
+These ten commands also accept -h.
 
 ### version
 
@@ -331,7 +333,7 @@ do not open a console window.
 Normal commands remain usable if GitHub is offline or the check fails. No
 automatic notice or background check runs for JSON output, redirected output,
 help, version, or termination. Notices use standard error and never alter socket
-JSON. Nothing is installed or replaced automatically. Audit never schedules these background checks, including when notices are enabled.
+JSON. Nothing is installed or replaced automatically. Audit and probe never schedule these background checks, including when notices are enabled.
 
 ### Shared discovery options
 
@@ -501,6 +503,59 @@ priority, not a vulnerability score; service hints remain unverified.
 See the [audit reference](https://github.com/Thuya-Myint/socklens/blob/main/docs/audit.md)
 for rule definitions, the JSON schema, service hints, and interpretation examples.
 
+### probe
+
+Requires v0.8.0 or newer. Make bounded TCP connection attempts to one explicit
+host and selected ports. This command sends TCP connection traffic and DNS
+queries for hostnames; it sends no application payloads.
+
+```sh
+socklens probe --host 127.0.0.1 --ports 8080
+socklens probe --host 192.168.1.20 --ports 80,443
+socklens probe --host localhost --ports 8080 --family ipv4
+socklens probe --host ::1 --ports 8080 --json
+socklens probe --host example.com --ports 443 --connect-timeout 2s --timeout 10s
+```
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| --host HOST | Required | One numeric unicast IP or ASCII hostname; no URL, CIDR, or embedded port |
+| --ports LIST | Required | Comma-separated integers, 1–65535; at most 64 distinct ports; duplicates are checked once; ranges/service names are unsupported |
+| --family any, ipv4, or ipv6 | any | Select which resolved address family to test |
+| --connect-timeout DURATION | 3s | Deadline per attempt, from 100ms to 30s; the total deadline can shorten it |
+| --timeout DURATION | 15s | Total budget including DNS, active attempts and queued work, from 1s to 5m |
+| --concurrency N | 4 | Maximum simultaneous TCP attempts, from 1 to 32 |
+| --json | Off | One report, including partial results after interruption or a total deadline |
+| -h, --help | — | Show probe options and interpretation |
+
+The global --color controls apply. A hostname is resolved once, then every
+selected numeric IP/port pair is checked separately. Results show the address
+attempted, outcome, duration, and available local/remote socket endpoints.
+Limits are 16 selected addresses and 256 total attempts; oversized plans fail
+before any connections instead of silently dropping targets.
+
+| Result | What was established |
+| --- | --- |
+| connected | A TCP connection completed from this machine at that time |
+| refused | TCP connection was explicitly refused by the target or an intermediary |
+| timed-out | An attempt did not complete before its deadline; cause is unknown |
+| network-error | Another connection error, such as routing or permission failure |
+| cancelled | An active attempt was interrupted before its result could be confirmed |
+| not-attempted | Queued work was skipped after interruption or the total deadline |
+
+Exit 0 means every planned connection succeeded; 2 means unsuccessful/incomplete
+connections or a total deadline; 1 means input, DNS/target planning, or output
+failure; 130 means interrupted. Valid-query DNS/planning failures still produce a
+JSON report; invalid arguments produce an error before DNS or connections.
+
+A timeout does not identify a firewall or establish a closed port. Connected
+does not establish application health, service identity, authentication, TLS,
+or vulnerability status. Remote owners/PIDs are not inferred. IPv4 and IPv6
+results can differ; use --family or a numeric IP to narrow the question.
+Existing discovery/audit commands stay passive and probe schedules no update checks.
+See the [probe reference](https://github.com/Thuya-Myint/socklens/blob/main/docs/probe.md)
+for the JSON schema, limits, cancellation behavior, and interpretation examples.
+
 ### watch
 
 ```sh
@@ -635,20 +690,20 @@ Protected system PIDs, SockLens itself, and processes owned by another user are 
 
 list and inspect produce a JSON array. Each socket includes Protocol, Local, Remote, State, Inode, PIDs, and Processes. Each process entry includes PID and Name. Inode is a platform-specific identity value and may be empty.
 
-watch emits newline-delimited records; wait emits one result on success. audit emits one report object with schema_version, timestamp, scope, external_reachability, summary, listeners, and notes. Since v0.7.0, audit adds an optional top-level firewall collection object and per-listener firewall context; --firewall=false omits them. These are additive schema version 1 fields. JSON strings escape control characters in process names. Existing discovery JSON schemas are unchanged.
+probe emits one TCP reachability report with schema_version, host, addresses, timing/limits, completion status, summary, optional error, results, and notes. watch emits newline-delimited records; wait emits one result on success. audit emits one report object with schema_version, timestamp, scope, external_reachability, summary, listeners, and notes. Since v0.7.0, audit adds an optional top-level firewall collection object and per-listener firewall context; --firewall=false omits them. These are additive schema version 1 fields. JSON strings escape control characters in process names. Existing discovery JSON schemas are unchanged.
 
 ## Exit codes
 
 | Code | Meaning |
 | --- | --- |
 | 0 | Command succeeded or help was displayed |
-| 1 | Invalid input, discovery/audit/update failure, termination refusal, settings error, or output error |
-| 2 | wait timed out |
-| 130 | wait, audit, or a foreground update was interrupted |
+| 1 | Invalid input, discovery/audit/update failure, probe DNS/target planning failure, termination refusal, settings error, or output error |
+| 2 | wait timed out; probe had unsuccessful/incomplete connections or exhausted its total deadline |
+| 130 | wait, audit, probe, or a foreground update was interrupted |
 
 Stopping watch with Ctrl+C exits successfully.
 
 ## Planned development
 
 The audit implementation and later security-analysis direction are described in
-[ROADMAP.md](https://github.com/Thuya-Myint/socklens/blob/main/ROADMAP.md). Remote checks and protocol/vulnerability analysis remain planned work.
+[ROADMAP.md](https://github.com/Thuya-Myint/socklens/blob/main/ROADMAP.md). Explicit TCP reachability checks are available in probe; protocol/vulnerability analysis remains planned work.
