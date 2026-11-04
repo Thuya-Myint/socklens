@@ -9,8 +9,9 @@ import (
 	"slices"
 	"strconv"
 	"sync"
-	"syscall"
 	"time"
+
+	"github.com/Thuya-Myint/socklens/internal/platform"
 )
 
 type Address struct {
@@ -282,7 +283,7 @@ func stopReport(report *Report, err error, phase string) {
 	report.Error = &Failure{Code: code, Message: message}
 }
 func classify(err error) (status, cause, message string) {
-	if errors.Is(err, syscall.ECONNREFUSED) {
+	if platform.IsConnectionRefused(err) {
 		return "refused", "connection-refused", "TCP connection explicitly refused by the target or an intermediary."
 	}
 	var networkError net.Error
