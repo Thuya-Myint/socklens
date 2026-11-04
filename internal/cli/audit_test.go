@@ -345,7 +345,7 @@ func TestAuditPolicyRenderingLimitsAndEscaping(t *testing.T) {
 	s := firewall.Empty()
 	s.Coverage = "partial"
 	for _, id := range []string{"a", "b", "c", "d"} {
-		s.Rules = append(s.Rules, firewall.Rule{ID: id, Name: "rule" + id + "\x1b[31m", Direction: "inbound", Action: "allow", Source: "fixture"})
+		s.Rules = append(s.Rules, firewall.Rule{ID: id, Name: "rule" + id + "\x1b[31m", Direction: "inbound", Action: "allow", Source: "fixture", Protocols: []string{"tcp"}, LocalPorts: []string{"5432"}})
 	}
 	report.Firewall = &s
 	c := firewall.Explain(s, "tcp", report.Listeners[0].Local, nil, netip.Addr{})
@@ -389,8 +389,9 @@ func TestAuditConciseAndDetailedViews(t *testing.T) {
 	policy.Interfaces = []firewall.Interface{{Name: "ethernet", Addresses: []string{"192.168.1.2/24"}}}
 	policy.Notes = []string{"FULL_COLLECTION_NOTE"}
 	policy.Rules = []firewall.Rule{{ID: "RULE_IDENTIFIER", Name: "Example database rule", Source: "windows-policy-com", Direction: "inbound", Action: "allow", Family: "ipv4", Protocols: []string{"6"}, LocalPorts: []string{"5432"}, RemotePorts: []string{"Any"}, LocalAddresses: []string{"Any"}, RemoteAddresses: []string{"192.168.1.0/24"}, Program: `C:\Apps\database\server.exe`, Profiles: "Private", Conditions: []string{"FULL_SECURITY_RESTRICTION"}, Raw: "FULL_RAW_POLICY"}}
+	policy.Paths[42] = `C:\Apps\database\server.exe`
 	report.Firewall = &policy
-	// No paths: keep the rule conditional instead of guessing process identity.
+	// A matching full path establishes process relation, not a firewall verdict.
 	for i := range report.Listeners {
 		l := &report.Listeners[i]
 		context := firewall.Explain(policy, l.Protocol, l.Local, l.PIDs, netip.MustParseAddr("192.168.1.20"))
@@ -471,6 +472,7 @@ func TestAuditBothViewsWrapUntrustedPolicyText(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	report.Listeners[0].Services = []platform.Service{{PID: 42, Name: "service\x1b[31m", DisplayName: "name\nspoof", State: "running"}}
 	s := firewall.Empty()
 	s.Coverage = "partial"
 	s.Sources = []firewall.Source{{Name: "source\x1b[31m", Status: "unavailable", Detail: "failed\nquery"}}
@@ -496,5 +498,80 @@ func TestAuditBothViewsWrapUntrustedPolicyText(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+func TestAuditProcessServiceAndCommunication(t *testing.T) {
+	rows := []platform.Socket{{Protocol: "udp", Local: "127.0.0.1:60817", State: "BOUND", PIDs: []int{8100}, Processes: []platform.Process{{PID: 8100, Name: "AppleMobileDeviceService.exe"}}}}
+	lookup := func(context.Context, []platform.Socket) *platform.ServiceSnapshot {
+		return &platform.ServiceSnapshot{Status: "read", Source: "windows-scm", Detail: "best effort", Services: []platform.Service{{PID: 8100, Name: "Apple Mobile Device Service", DisplayName: "Apple Mobile Device Service", State: "running", ProcessType: "own-process", Source: "windows-scm"}}}
+	}
+	var out, stderr bytes.Buffer
+	code := auditWithMetadata(context.Background(), []string{"--firewall=false"}, &out, &stderr, func() ([]platform.Socket, error) { return rows, nil }, nil, lookup)
+	if code != 0 {
+		t.Fatal(code, &stderr)
+	}
+	for _, want := range []string{"Process: AppleMobileDeviceService.exe (PID 8100)", "Service: Apple Mobile Device Service | running | hosted by PID 8100", "Inbound: UDP to 127.0.0.1:60817 | local applications via loopback", "Outbound: UDP from 127.0.0.1:60817 | remote peer not reported", "shared-host services are not attributed"} {
+		if !strings.Contains(out.String(), want) {
+			t.Fatal("missing", want, &out)
+		}
+	}
+	out.Reset()
+	stderr.Reset()
+	code = auditWithMetadata(context.Background(), []string{"--firewall=false", "--json"}, &out, &stderr, func() ([]platform.Socket, error) { return rows, nil }, nil, lookup)
+	var report audit.Report
+	if code != 0 || json.Unmarshal(out.Bytes(), &report) != nil || report.ServiceLookup == nil || len(report.Listeners[0].Services) != 1 {
+		t.Fatal(code, &out, &stderr)
+	}
+}
+func TestAuditServiceLookupFailureAndCancellation(t *testing.T) {
+	var out, stderr bytes.Buffer
+	rows := func() ([]platform.Socket, error) { return auditFixture(), nil }
+	failure := func(context.Context, []platform.Socket) *platform.ServiceSnapshot {
+		return &platform.ServiceSnapshot{Status: "unavailable", Source: "windows-scm", Detail: "access denied"}
+	}
+	if code := auditWithMetadata(context.Background(), []string{"--firewall=false"}, &out, &stderr, rows, nil, failure); code != 0 || !strings.Contains(out.String(), "Services: unavailable; access denied") {
+		t.Fatal(code, &out, &stderr)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	out.Reset()
+	stderr.Reset()
+	if code := auditWithMetadata(ctx, []string{"--firewall=false"}, &out, &stderr, rows, nil, func(context.Context, []platform.Socket) *platform.ServiceSnapshot { cancel(); return nil }); code != 130 || out.Len() != 0 {
+		t.Fatal("service lookup cancellation returned a late report", code, &out, &stderr)
+	}
+}
+func TestAuditWeakRulesInDetailsOnly(t *testing.T) {
+	report, err := audit.Analyze(auditFixture(), time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := firewall.Empty()
+	s.Coverage = "partial"
+	s.Rules = []firewall.Rule{{ID: "package-rule", Name: "UNRELATED_PACKAGE", Direction: "inbound", Action: "allow", Protocols: []string{"tcp"}, LocalPorts: []string{"5432"}, IdentityConditions: []string{"Package=unverified-app"}}, {ID: "endpoint-rule", Name: "ENDPOINT_SPECIFIC", Direction: "inbound", Action: "allow", Protocols: []string{"tcp"}, LocalPorts: []string{"5432"}}}
+	report.Firewall = &s
+	policy := firewall.Explain(s, "tcp", report.Listeners[0].Local, report.Listeners[0].PIDs, netip.Addr{})
+	report.Listeners[0].Firewall = &policy
+	var compact, details bytes.Buffer
+	if err := writeAuditReportMode(&compact, report, 0, 3, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeAuditReportMode(&details, report, 0, 3, true); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(compact.String(), "UNRELATED_PACKAGE") || !strings.Contains(compact.String(), "ENDPOINT_SPECIFIC") || !strings.Contains(details.String(), "UNRELATED_PACKAGE") {
+		t.Fatal("weak/unresolved rules shown as relevant or lost from details")
+	}
+	if !strings.Contains(compact.String(), "Not established") || !strings.Contains(compact.String(), "Broad/unverified rules are in --details") {
+		t.Fatal("hidden broad policy not explained")
+	}
+	if len(policy.Inbound.Rules) != 2 {
+		t.Fatal("unverified rule erased from structured report")
+	}
+}
+func TestAuditTCPCommunicationIsNotAnOutboundProbe(t *testing.T) {
+	incoming, outgoing := auditCommunication(audit.Listener{Protocol: "tcp", Local: "0.0.0.0:8080", BindingScope: "wildcard"})
+	if !strings.Contains(incoming, "TCP to 0.0.0.0:8080") || !strings.Contains(incoming, "remote access not established") || !strings.Contains(outgoing, "socklens inspect --protocol tcp 8080") {
+		t.Fatal(incoming, outgoing)
 	}
 }

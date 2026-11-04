@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.7.2 — 2026-11-04
+
+- Native Windows executable-name fallback fills missing names when full-image access is denied.
+- Read-only Windows service names/display names/states in audit, kept separate from executable identity and shared-host socket attribution.
+- Plain inbound TCP/UDP binding scope and outbound peer visibility on macOS, Windows and Linux.
+- Default rule evidence favors explicit endpoint/process relation; broad and identity-unresolved candidates remain in details/JSON.
+- Windows dotted subnet masks and structured rule relevance/identity evidence; no inferred allow/block verdict.
+- Cross-platform output, metadata/ABI/escaping/cancellation and native Windows regressions.
+
 ## v0.7.1 — 2026-11-04
 
 - Concise audit text with combined process/PID details, short next steps, and conditional firewall rule summaries.

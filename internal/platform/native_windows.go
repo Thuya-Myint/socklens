@@ -116,6 +116,18 @@ func List() ([]Socket, error) {
 			}
 		}
 	}
+	// Fill only unavailable names; never substitute a basename for a full path.
+	missing := false
+	for _, row := range result {
+		for _, process := range row.Processes {
+			missing = missing || process.Name == ""
+		}
+	}
+	if missing {
+		fallback, _ := windowsSnapshotNames()
+		fillMissingProcessNames(result, fallback)
+	}
+
 	sortSockets(result)
 	return result, nil
 }

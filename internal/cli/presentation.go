@@ -100,7 +100,10 @@ func newCommandFlags(command string, out io.Writer) *flag.FlagSet {
 Explains local TCP listeners and bound/unconnected UDP sockets.
 Filters combine: --port PORT, --protocol tcp|udp, --pid PID.
 Read-only firewall context is included by default; --firewall=false skips it.
-Concise text is the default; --details shows full evidence and policy restrictions.
+Concise text shows inbound protocol/binding scope and outbound peer visibility.
+Default rule evidence is endpoint/process-related; --details includes broad and
+identity-unresolved entries, full evidence and restrictions.
+Windows shows hosted service names when available; a service host can be shared.
 JSON always includes the complete structured report, regardless of --details.
 --peer filters candidates by numeric IP; it does not send traffic.
 No probes, elevation, firewall changes, or background update checks run during audit.

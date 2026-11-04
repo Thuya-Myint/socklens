@@ -1,42 +1,54 @@
-# SockLens v0.7.1
+# SockLens v0.7.2
 
-Audit output is easier to scan, with concise text by default and full detail
-available on demand.
+Audit now identifies more Windows socket owners, shows hosted service names when
+available, and explains communication scope in plain language on every platform.
 
 ```sh
-socklens audit
-socklens audit --port 8080
-socklens audit --port 8080 --details
-socklens audit --details --rule-limit 0
-socklens audit --port 8080 --json
+socklens list --port 60817
+socklens audit --port 60817
+socklens audit --port 60817 --firewall=false
+socklens audit --port 60817 --details
+socklens audit --port 60817 --json
 ```
+
+Use a currently observed port. For a Windows service endpoint, output can show
+AppleMobileDeviceService.exe as the process and Apple Mobile Device Service as
+the separately observed hosted service, instead of just an unavailable name.
 
 ## Included
 
-- A short overview with source coverage, available network profiles, and default
-  policy configuration. Source failures remain visible, including fallback use.
-- Combined process/PID details and readable bindings, findings and next steps.
-- Conditional inbound/outbound rule counts and short rule summaries showing
-  protocol, ports, IP restrictions and application/profile/interface scope.
-- --details for full evidence, source/profile/interface metadata, rule IDs,
-  restrictions, raw policy, complete program paths and interpretation notes.
-- Consolidated explanations instead of repeating them for every candidate.
-- Unresolved restrictions stay explicit. Allow/block candidates remain conditional;
-  no candidates does not imply permission or denial. Profile values are observed
-  configuration, not a complete effective policy or remote reachability result.
+- Native Windows Toolhelp executable-name fallback when preferred full-image
+  access fails. Discovery JSON fields remain the same; missing names may fill.
+- Read-only native Windows SCM service status queries for audit: service name,
+  display name, state, PID, own/shared-host type and source. Shared-host service
+  metadata does not identify which service owns a particular socket. Permissions
+  can omit services; no administrator prompt or service changes are attempted.
+- Shared macOS/Windows/Linux inbound TCP/UDP binding scope and outbound visibility.
+  Loopback describes local binding scope, not a firewall grant. UDP peers are not
+  invented; TCP listener output points to inspect for accepted connection rows.
+- Concise rule evidence related to an explicit known local port or observed full
+  process path. Broad/identity-unresolved rules stay in --details and JSON.
+- Collected Windows package/service/user/security restrictions remain unverified;
+  a process basename is never substituted for a full executable-path match.
+- Windows dotted subnet masks recognized for numeric peer filtering.
+- Additive schema 1 service_lookup/listener services and candidate relevance/
+  identity_conditions fields. All candidate data remains available in JSON.
 
-The text rule limit still defaults to 3 per direction per listener. Use
---details --rule-limit 0 to display all candidates in full. JSON always retains
-all collected candidate data and is unaffected by either text display option.
-No JSON schema, collector, candidate matching, finding level, reading priority,
-update preference or process termination behavior changes are introduced.
+All firewall assessments remain conditional/unknown where the full decision
+cannot be established. Profiles, identity, precedence, other layers and external
+reachability are not fully evaluated. Related evidence is not permission.
+--rule-limit 0 removes the selected view's display limit; use --details
+--rule-limit 0 for every candidate. A supplied --peer is labeled requested,
+never an observed remote connection. No network probes or automatic elevation.
 
-Both text views wrap to terminal width, follow normal color settings, and escape
-untrusted strings. The Go implementation remains standard-library-only.
+## Platforms and upgrade
 
-## Upgrade
+All macOS, Windows and Linux amd64/arm64 binaries and installers are included.
+Windows gets OS-specific owner/service enrichment; macOS/Linux retain their
+native process discovery and share the new communication/output behavior.
+No external Go modules or new runtime utilities were added for owner/service lookup.
 
-On macOS/Linux, run socklens update, then socklens version.
+On macOS/Linux run socklens update, then socklens version.
 On Windows v0.5.2 or newer:
 
 ```powershell
@@ -44,25 +56,21 @@ socklens update
 socklens update --status
 ```
 
-Wait for completed status, then run socklens version. Expected: v0.7.1.
+Wait for completed status, then verify socklens version reports v0.7.2.
 Windows Scoop v0.5.0/v0.5.1 needs scoop update followed by scoop update socklens
-once to bypass its installed updater's junction bug. v0.4.0 and older need one
-initial package-manager/binary-installer upgrade.
-
-All macOS, Windows, and Linux amd64/arm64 binaries are included. Homebrew, Scoop,
-and Linux installer references update after required checks. No Go installation
-or source checkout is needed.
+once. v0.4.0 and older need an initial package-manager/binary-installer upgrade.
 
 ## Validation
 
-Regressions cover concise versus detailed evidence visibility, unchanged JSON,
-conditional labels, unknown restrictions, program-path summaries, rule limits,
-output errors, escaping and narrow terminal layouts. Native platform tests,
-Linux race/security checks, packaging and installer smoke tests gate release.
-A real Windows listener preview also verified both views and local policy context.
+Tests cover missing-name fallback, native Windows process/service APIs, 32/64-bit
+service table bounds and UTF-16 strings, service-to-PID association, shared hosts,
+cancellation, escaping, protocol/binding summaries, dotted masks, candidate
+relevance and complete detail/JSON visibility. All-platform native/race/security,
+packaging and installer smoke checks gate release and promotion. The real Windows
+PID 8100 endpoint was checked for the recovered executable and service names.
 
-Firewall interpretation remains partial; macOS PF fields are preserved as raw
-policy, Linux queries depend on available tools/permissions, and remote
-reachability and service/TLS/vulnerability testing remain future work.
+Termination identity/permissions remain unchanged. Service metadata is a
+best-effort observation, not verified executable identity or a vulnerability
+finding. Remote reachability and full policy evaluation remain future work.
 
 Licensed under MIT.

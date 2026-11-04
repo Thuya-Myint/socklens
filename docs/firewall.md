@@ -22,10 +22,36 @@ compatibility. --peer cannot be combined with --firewall=false.
 
 --firewall-timeout is a total collection deadline (default 20s, range 1s–2m).
 --rule-limit is a text display limit per direction per listener (default 3, range
-0–10000); 0 shows all. Omitted candidates are counted with instructions to view
+0–10000); 0 removes the selected text view's limit. Use --details to include
+unverified candidates. Omitted related candidates are counted with instructions to view
 all. JSON always includes every collected candidate. Rules that cannot be read
 or represented are covered by collection/interpretation limitations, not omitted
 under an implied complete result.
+
+## Related rule evidence (v0.7.2)
+
+Concise text starts with transport/binding observations, then shows conditional
+rule evidence related to an explicit known local-port restriction or an observed
+full executable-path match. Broad rules, missing path matches, and collected
+package/service/user/security restrictions that remain unresolved are classified
+unverified and retained in --details/JSON. Do not interpret their absence from the
+concise view as absence from policy or proof that traffic is permitted.
+
+Candidate relevance is endpoint, process, or unverified. It describes evidence
+relation, never a final firewall decision. Windows identity_conditions preserve
+unresolved package/service/user/security restrictions as structured evidence;
+services associated with a PID do not bypass these conditions or establish which
+shared-host service owns a socket. Other platform collectors retain their existing
+coverage limits, including raw/unparsed restrictions and traversal uncertainty.
+Windows IPv4 dotted subnet masks are normalized for peer comparisons; invalid
+masks remain unresolved. A supplied --peer is a policy question, not observed
+remote traffic. UDP peer information may be absent; TCP listener snapshots refer
+to inspect for observed connection rows.
+
+--rule-limit applies to the selected text view. --rule-limit 0 removes the default
+view's related-rule limit; --details --rule-limit 0 displays all candidates.
+JSON always keeps all candidates, including unverified ones, with relevance and
+any available identity_conditions. Schema_version remains 1 with additive fields.
 
 ## Concise text and full details (v0.7.1)
 
@@ -109,7 +135,7 @@ The report keeps schema_version 1 with additive optional fields:
 - listeners[].firewall: coverage, optional peer, peer_compatibility,
   local_addresses, inbound, and outbound.
 - Each direction: assessment=unknown, summary, rules (an array, empty when none).
-- Each candidate: match=conditional, reasons, and rule.
+- Each candidate: match=conditional, relevance (endpoint/process/unverified), reasons, and rule.
 - A rule: id, name, source, direction, action, family, protocols, local_ports,
   remote_ports, local_addresses, remote_addresses, optional program/profiles/
   interfaces/raw, and conditions. Empty restriction arrays mean unknown or not

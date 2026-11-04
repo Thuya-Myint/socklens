@@ -25,6 +25,31 @@ The command reads one snapshot. Process metadata can be unavailable or partial
 because of permissions or changes during collection. WSL2 observes its Linux
 environment. Containers and network namespaces limit the environment visible.
 
+## Process/service names and communication (v0.7.2)
+
+All platforms show observed TCP/UDP inbound binding scope and outbound visibility.
+A loopback binding is described as local applications via loopback, not a firewall
+permission. Wildcard/specific bindings do not establish remote access. Windows
+UDP tables do not report a remote peer; no UDP peer is invented. TCP listeners
+refer to inspect for accepted connection rows rather than claiming an outbound
+probe or connection was observed. A supplied --peer is labeled requested.
+
+Windows preferred executable-name lookups now fall back to a native Toolhelp
+process snapshot. This improves names in list, inspect, watch, wait and audit
+without treating a basename as a full path or verified identity. Audit separately
+queries native SCM service status with read-only enumeration rights; no service
+control/elevation is attempted. Display names, service names, state, PID, source
+and own/shared-host type are best-effort observations. Permissions can silently
+omit services; no service listed does not establish that the process is not a
+service. Shared-host service entries do not attribute a socket to one service.
+Other OSes keep native process discovery and omit Windows service metadata.
+
+JSON adds optional service_lookup status/source/detail and listeners[].services
+records (pid/name/display_name/state/process_type/source), retaining schema 1.
+Existing discovery arrays retain the same fields; formerly missing Name values
+may now be populated on Windows. Termination identities and safeguards are not
+changed and never use this display-only fallback.
+
 ## Concise and detailed text (v0.7.1)
 
 The default text view emphasizes process/PID, binding, findings, next steps,
@@ -51,7 +76,8 @@ Firewall queries are enabled by default. Use --firewall=false to skip them.
 --peer IP filters candidate rules by a numeric unicast address; it requires
 firewall collection and does not contact the peer. --firewall-timeout defaults
 to 20s (1s–2m). --rule-limit defaults to 3 candidates per direction per listener
-in text; 0 displays all, while JSON always contains all collected candidates.
+in text; 0 removes the selected view's limit. Use --details to include unverified
+candidates; JSON always contains all collected candidates.
 
 See the [firewall reference](firewall.md) for collectors, matching, uncertainty,
 JSON fields, conditions, and examples. These options combine with the socket
@@ -203,3 +229,9 @@ enrichment uses local OS utilities with explicit missing-tool/permission status.
 - [NIST SP 800-115](https://csrc.nist.gov/pubs/sp/800/115/final): port/service discovery and vulnerability assessment require different evidence.
 
 Remote host checks and service/protocol security testing remain roadmap work.
+
+Windows owner/service references:
+
+- [PROCESSENTRY32W executable-name observations](https://learn.microsoft.com/en-us/windows/win32/api/tlhelp32/ns-tlhelp32-processentry32w)
+- [EnumServicesStatusExW read-only enumeration and permission omissions](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-enumservicesstatusexw)
+- [Service process/status records and shared hosts](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/ns-winsvc-service_status_process)

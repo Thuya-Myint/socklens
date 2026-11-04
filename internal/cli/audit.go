@@ -25,12 +25,18 @@ func auditCommand(ctx context.Context, args []string, out, errOut io.Writer, lis
 type firewallCollector func(context.Context, []platform.Socket) firewall.Snapshot
 
 func auditWithFirewall(ctx context.Context, args []string, out, errOut io.Writer, list func() ([]platform.Socket, error), collect firewallCollector) int {
+	return auditWithMetadata(ctx, args, out, errOut, list, collect, platform.CollectServices)
+}
+
+type serviceCollector func(context.Context, []platform.Socket) *platform.ServiceSnapshot
+
+func auditWithMetadata(ctx context.Context, args []string, out, errOut io.Writer, list func() ([]platform.Socket, error), collect firewallCollector, services serviceCollector) int {
 	fs := newCommandFlags("audit", errOut)
 	opts := addSocketFlags(fs)
-	includeFirewall := fs.Bool("firewall", true, "collect read-only local firewall context; false keeps socket-only audit")
+	includeFirewall := fs.Bool("firewall", true, "collect read-only local firewall context; false keeps socket/process observations")
 	peerValue := fs.String("peer", "", "numeric peer IP for candidate policy filtering; no connection is made")
 	policyTimeout := fs.Duration("firewall-timeout", 20*time.Second, "total firewall query deadline (1s to 2m)")
-	ruleLimit := fs.Int("rule-limit", 3, "maximum candidate rules shown per direction per listener; 0 shows all (JSON always includes all)")
+	ruleLimit := fs.Int("rule-limit", 3, "maximum rules per direction in the selected view; 0 removes the limit (--details/JSON include unverified candidates)")
 	details := fs.Bool("details", false, "show full evidence, firewall metadata, rule restrictions and raw policy (JSON always includes all)")
 	if err := parseCommandFlags(fs, args, errOut); err != nil {
 		if err == flag.ErrHelp {
@@ -85,6 +91,11 @@ func auditWithFirewall(ctx context.Context, args []string, out, errOut io.Writer
 	if err != nil {
 		return fail(errOut, err)
 	}
+	lookup := services(ctx, rows)
+	if ctx.Err() != nil {
+		return auditStopped(ctx, errOut)
+	}
+	audit.AddServices(&report, lookup)
 	if *includeFirewall {
 		policyCtx, cancel := context.WithTimeout(ctx, *policyTimeout)
 		snapshot := collect(policyCtx, rows)
@@ -237,6 +248,18 @@ func writeAuditReportDetailed(out io.Writer, report audit.Report, columns, ruleL
 				return err
 			}
 		}
+		for _, service := range listener.Services {
+			if err := field("Service", fmt.Sprintf("%s | display=%s | PID %d | %s | %s | %s", service.Name, service.DisplayName, service.PID, service.State, service.ProcessType, service.Source)); err != nil {
+				return err
+			}
+		}
+		incoming, outgoing := auditCommunication(listener)
+		if err := field("Inbound", incoming); err != nil {
+			return err
+		}
+		if err := field("Outbound", outgoing); err != nil {
+			return err
+		}
 		if listener.ServiceHint != nil {
 			if err := field("Hint", listener.ServiceHint.Name+" (port convention; unverified)"); err != nil {
 				return err
@@ -286,6 +309,9 @@ func writeAuditReportDetailed(out io.Writer, report audit.Report, columns, ruleL
 						}
 						break
 					}
+					if err := field("Relevance", candidate.Relevance); err != nil {
+						return err
+					}
 					rule := candidate.Rule
 					if err := field("Rule", strings.ToUpper(rule.Action)+" "+rule.Name+" | "+candidate.Match+" | "+rule.Source+" #"+rule.ID); err != nil {
 						return err
@@ -327,6 +353,11 @@ func writeAuditReportDetailed(out io.Writer, report audit.Report, columns, ruleL
 	}
 	if _, err := fmt.Fprintln(out); err != nil {
 		return err
+	}
+	if report.ServiceLookup != nil {
+		if err := field("Services", report.ServiceLookup.Status+" | "+report.ServiceLookup.Detail); err != nil {
+			return err
+		}
 	}
 	if report.Summary.MissingProcessDetails > 0 {
 		if err := writeFolded(out, terminal.Info, fmt.Sprintf("INFO Listeners with incomplete process details: %d. Permissions may limit visibility.", report.Summary.MissingProcessDetails), columns); err != nil {

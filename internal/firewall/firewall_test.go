@@ -115,3 +115,46 @@ func TestPeerValidation(t *testing.T) {
 		}
 	}
 }
+
+func TestWindowsDottedNetmask(t *testing.T) {
+	if !addressMayMatch([]string{"127.0.0.0/255.0.0.0"}, netip.MustParseAddr("127.0.0.1")) {
+		t.Fatal("Windows dotted netmask not recognized")
+	}
+	if addressMayMatch([]string{"127.0.0.0/255.0.0.0"}, netip.MustParseAddr("192.168.1.20")) {
+		t.Fatal("dotted netmask retained unrelated peer")
+	}
+	if !addressMayMatch([]string{"10.0.0.0/255.0.255.0"}, netip.MustParseAddr("192.168.1.20")) {
+		t.Fatal("invalid noncontiguous mask treated as definite nonmatch")
+	}
+}
+func TestRuleRelevanceAndUnresolvedIdentity(t *testing.T) {
+	r := testRule()
+	s := Empty()
+	s.Rules = []Rule{r}
+	peer := netip.MustParseAddr("192.168.1.20")
+	got := Explain(s, "tcp", "0.0.0.0:5432", []int{42}, peer)
+	if got.Inbound.Rules[0].Relevance != "endpoint" {
+		t.Fatal(got)
+	}
+	s.Rules[0].Program = `C:\Apps\server.exe`
+	got = Explain(s, "tcp", "0.0.0.0:5432", []int{42}, peer)
+	if got.Inbound.Rules[0].Relevance != "unverified" {
+		t.Fatal("missing path established process relevance")
+	}
+	s.Paths[42] = `C:\Apps\server.exe`
+	got = Explain(s, "tcp", "0.0.0.0:5432", []int{42}, peer)
+	if got.Inbound.Rules[0].Relevance != "process" {
+		t.Fatal(got)
+	}
+	s.Rules[0].IdentityConditions = []string{"LocalAppPackageId=another-app"}
+	got = Explain(s, "tcp", "0.0.0.0:5432", []int{42}, peer)
+	if got.Inbound.Rules[0].Relevance != "unverified" || got.Inbound.Assessment != "unknown" {
+		t.Fatal("unresolved identity promoted to applicable permission")
+	}
+	s.Rules[0] = r
+	s.Rules[0].LocalPorts = []string{"Any"}
+	got = Explain(s, "tcp", "0.0.0.0:5432", []int{42}, peer)
+	if got.Inbound.Rules[0].Relevance != "unverified" {
+		t.Fatal("broad rule promoted to endpoint-specific")
+	}
+}

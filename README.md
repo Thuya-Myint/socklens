@@ -362,7 +362,7 @@ socklens list --pid 12345
 socklens list --json
 ```
 
-Lists sockets in all states by default. Text output includes protocol, local/remote endpoints, state, process IDs, and process names. Unavailable owner information appears as a dash.
+Lists sockets in all states by default. Text output includes protocol, local/remote endpoints, state, process IDs, and process names. Unavailable owner information appears as a dash. From v0.7.2, Windows fills missing executable names from a native process snapshot when its preferred full-image lookup is denied. Names are best-effort observations; this does not reveal or verify the executable path.
 
 IPv4 and IPv6 are supported. On Windows, UDP rows are BOUND because connection state is not provided by the system table. On macOS, process attribution is the last recorded PID and may not include every holder of a shared socket. WSL2 shows Linux sockets in that WSL environment.
 
@@ -408,9 +408,9 @@ Replace 12345 with an actual observed PID. All supplied filters combine.
 | --pid PID | Any | Filter by an observed positive process ID |
 | --json | Off | Return one versioned JSON report with summary, listeners, findings, and limitations |
 | --peer IP | None | Filter firewall candidates for a numeric unicast peer IP; never contacts that peer |
-| --firewall=false | Collection enabled | Skip firewall queries and show socket-only output |
+| --firewall=false | Collection enabled | Skip firewall queries; retain socket/process observations and available Windows service metadata |
 | --firewall-timeout DURATION | 20s | Total local policy query deadline, from 1s to 2m |
-| --rule-limit N | 3 | Maximum rules displayed per listener per direction; 0 shows all; JSON always includes all candidates |
+| --rule-limit N | 3 | Maximum rules per listener/direction in the selected text view; 0 removes that limit; --details includes unverified candidates; JSON always includes all |
 | --details | Off | Show full evidence, metadata, rule restrictions, raw policy, and program paths; JSON is always complete |
 | -h, --help | — | Show audit options and examples |
 
@@ -455,6 +455,24 @@ connections, or background update checks. --firewall=false skips policy queries;
 --peer requires firewall collection. Authentication, TLS, application health, and
 CVEs are not tested. The executable is built with the Go standard library only;
 Go is not required to run it. Firewall enrichment uses the local OS tools above.
+
+From v0.7.2, audit also explains the observed incoming transport/binding scope
+and outgoing peer visibility. UDP names its local endpoint and explicitly says
+when no remote peer is available. TCP listener output points to inspect for
+accepted connection rows. --peer is a user-supplied policy question, never a
+claim that a remote peer was observed. These summaries do not test communication.
+
+On Windows, native Service Control Manager queries add hosted service names,
+display names and states when available, separately from executable names. A
+process can host several services; PID association does not identify which one
+owns an individual socket. Missing or inaccessible service metadata stays explicit.
+No service query is performed on macOS/Linux; native process discovery continues.
+
+The default view shows endpoint/process-related rule evidence. Broad rules,
+missing executable-path matches and unresolved package/service/user/security
+restrictions stay in --details and JSON. Related evidence still does not establish
+permission; other rules and filtering layers may apply. Windows dotted subnet
+masks such as 127.0.0.0/255.0.0.0 are recognized for numeric peer filtering.
 
 From v0.7.1, text is concise by default: a short snapshot overview, combined
 process/PID details, findings and next steps, and conditional rule summaries.

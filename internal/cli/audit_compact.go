@@ -120,7 +120,25 @@ func writeAuditReportCompact(out io.Writer, report audit.Report, columns, ruleLi
 		if err := field("Process", auditOwnerSummary(listener)); err != nil {
 			return err
 		}
+		for _, service := range listener.Services {
+			name := service.DisplayName
+			if name == "" {
+				name = service.Name
+			} else if name != service.Name {
+				name += " [" + service.Name + "]"
+			}
+			if err := field("Service", fmt.Sprintf("%s | %s | hosted by PID %d", name, service.State, service.PID)); err != nil {
+				return err
+			}
+		}
 		if err := field("Binding", auditBindingSummary(listener)); err != nil {
+			return err
+		}
+		incoming, outgoing := auditCommunication(listener)
+		if err := field("Inbound", incoming); err != nil {
+			return err
+		}
+		if err := field("Outbound", outgoing); err != nil {
 			return err
 		}
 		if listener.ProcessVisibility != "observed" {
@@ -160,13 +178,16 @@ func writeAuditReportCompact(out io.Writer, report audit.Report, columns, ruleLi
 		}
 		if listener.Firewall != nil {
 			policy := listener.Firewall
+			if err := field("Decision", "Not established; effective profile, identity restrictions and rule precedence are not fully evaluated."); err != nil {
+				return err
+			}
 			if listener.BindingScope == "wildcard" && len(policy.LocalAddresses) > 0 {
 				if err := field("Local IPs", strings.Join(policy.LocalAddresses, ", ")); err != nil {
 					return err
 				}
 			}
 			if policy.Peer != "" {
-				if err := field("Peer", policy.Peer+" | "+policy.PeerCompatibility); err != nil {
+				if err := field("Peer", policy.Peer+" (requested; not observed) | "+policy.PeerCompatibility); err != nil {
 					return err
 				}
 			}
@@ -174,23 +195,27 @@ func writeAuditReportCompact(out io.Writer, report audit.Report, columns, ruleLi
 				name string
 				data firewall.Direction
 			}{{"Inbound", policy.Inbound}, {"Outbound", policy.Outbound}} {
-				allow, block, other := 0, 0, 0
+				related := []firewall.Candidate{}
+				unverified := 0
 				for _, candidate := range direction.data.Rules {
-					switch candidate.Rule.Action {
-					case "allow":
-						allow++
-					case "block":
-						block++
-					default:
-						other++
+					if candidate.Relevance == "endpoint" || candidate.Relevance == "process" {
+						related = append(related, candidate)
+					} else {
+						unverified++
 					}
 				}
-				summary := fmt.Sprintf("%s | %d conditional candidates (%d allow, %d block", direction.data.Assessment, len(direction.data.Rules), allow, block)
-				if other > 0 {
-					summary += fmt.Sprintf(", %d other", other)
+				if unverified > 0 {
+					hiddenRules = true
 				}
-				summary += ")"
-				if err := field(direction.name, summary); err != nil {
+				label := "In rules"
+				if direction.name == "Outbound" {
+					label = "Out rules"
+				}
+				summary := "No endpoint/process-specific rule established"
+				if len(related) > 0 {
+					summary = fmt.Sprintf("%d endpoint/process-related conditional rules", len(related))
+				}
+				if err := field(label, summary); err != nil {
 					return err
 				}
 				if strings.HasPrefix(policy.PeerCompatibility, "different-family") || strings.HasPrefix(policy.PeerCompatibility, "local-only") {
@@ -198,10 +223,10 @@ func writeAuditReportCompact(out io.Writer, report audit.Report, columns, ruleLi
 						return err
 					}
 				}
-				for i, candidate := range direction.data.Rules {
+				for i, candidate := range related {
 					if ruleLimit > 0 && i >= ruleLimit {
 						hiddenRules = true
-						if err := field("More rules", fmt.Sprintf("%d additional %s candidates", len(direction.data.Rules)-i, strings.ToLower(direction.name))); err != nil {
+						if err := field("More rules", fmt.Sprintf("%d additional %s candidates", len(related)-i, strings.ToLower(direction.name))); err != nil {
 							return err
 						}
 						break
@@ -246,10 +271,24 @@ func writeAuditReportCompact(out io.Writer, report audit.Report, columns, ruleLi
 		return err
 	}
 	if report.Firewall != nil {
-		if err := line(terminal.Muted, "Policy candidates are conditional. Other restrictions, profile/interface applicability, state and precedence remain unresolved."); err != nil {
+		if err := line(terminal.Muted, "Rule evidence is conditional, not a traffic decision. Broad rules and unresolved identity restrictions may also affect communication."); err != nil {
 			return err
 		}
 		if err := line(terminal.Muted, "No candidates does not mean allowed or blocked. Partial/unknown coverage can miss filtering layers."); err != nil {
+			return err
+		}
+	}
+	if report.ServiceLookup != nil && report.ServiceLookup.Status != "read" {
+		if err := field("Services", report.ServiceLookup.Status+"; "+report.ServiceLookup.Detail); err != nil {
+			return err
+		}
+	}
+	hasServices := false
+	for _, listener := range report.Listeners {
+		hasServices = hasServices || len(listener.Services) > 0
+	}
+	if hasServices {
+		if err := line(terminal.Muted, "Service names are associated with owning PIDs; shared-host services are not attributed to individual sockets."); err != nil {
 			return err
 		}
 	}
@@ -260,7 +299,7 @@ func writeAuditReportCompact(out io.Writer, report audit.Report, columns, ruleLi
 	}
 	tips := "Use --details for full evidence, metadata, restrictions, raw policy and program paths; --json for structured data."
 	if hiddenRules {
-		tips += " Use --rule-limit 0 to show all candidate rules."
+		tips += " Broad/unverified rules are in --details; --details --rule-limit 0 shows all candidates."
 	}
 	return line(terminal.Muted, tips)
 }

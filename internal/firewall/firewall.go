@@ -3,6 +3,7 @@ package firewall
 
 import (
 	"fmt"
+	"net"
 	"net/netip"
 	"sort"
 	"strconv"
@@ -27,22 +28,23 @@ type Interface struct {
 	Profile   string   `json:"profile,omitempty"`
 }
 type Rule struct {
-	ID              string   `json:"id"`
-	Name            string   `json:"name"`
-	Source          string   `json:"source"`
-	Direction       string   `json:"direction"`
-	Action          string   `json:"action"`
-	Family          string   `json:"family"`
-	Protocols       []string `json:"protocols"`
-	LocalPorts      []string `json:"local_ports"`
-	RemotePorts     []string `json:"remote_ports"`
-	LocalAddresses  []string `json:"local_addresses"`
-	RemoteAddresses []string `json:"remote_addresses"`
-	Program         string   `json:"program,omitempty"`
-	Profiles        string   `json:"profiles,omitempty"`
-	Interfaces      string   `json:"interfaces,omitempty"`
-	Conditions      []string `json:"conditions"`
-	Raw             string   `json:"raw,omitempty"`
+	IdentityConditions []string `json:"identity_conditions,omitempty"`
+	ID                 string   `json:"id"`
+	Name               string   `json:"name"`
+	Source             string   `json:"source"`
+	Direction          string   `json:"direction"`
+	Action             string   `json:"action"`
+	Family             string   `json:"family"`
+	Protocols          []string `json:"protocols"`
+	LocalPorts         []string `json:"local_ports"`
+	RemotePorts        []string `json:"remote_ports"`
+	LocalAddresses     []string `json:"local_addresses"`
+	RemoteAddresses    []string `json:"remote_addresses"`
+	Program            string   `json:"program,omitempty"`
+	Profiles           string   `json:"profiles,omitempty"`
+	Interfaces         string   `json:"interfaces,omitempty"`
+	Conditions         []string `json:"conditions"`
+	Raw                string   `json:"raw,omitempty"`
 }
 type Snapshot struct {
 	Coverage   string         `json:"coverage"`
@@ -54,9 +56,10 @@ type Snapshot struct {
 	Paths      map[int]string `json:"-"`
 }
 type Candidate struct {
-	Rule    Rule     `json:"rule"`
-	Match   string   `json:"match"`
-	Reasons []string `json:"reasons"`
+	Relevance string   `json:"relevance"`
+	Rule      Rule     `json:"rule"`
+	Match     string   `json:"match"`
+	Reasons   []string `json:"reasons"`
 }
 type Direction struct {
 	Assessment string      `json:"assessment"`
@@ -169,7 +172,23 @@ func Explain(s Snapshot, protocol, local string, pids []int, peer netip.Addr) Co
 		if !allAny(rule.RemotePorts) {
 			reasons = append(reasons, "Remote port is not specified; this rule's remote-port restriction is unresolved.")
 		}
-		candidate := Candidate{Rule: rule, Match: "conditional", Reasons: reasons}
+		relevance := "unverified"
+		identityUnresolved := len(rule.IdentityConditions) > 0
+		if rule.Program != "" && !strings.EqualFold(rule.Program, "any") && rule.Program != "*" {
+			matched := false
+			for _, pid := range pids {
+				matched = matched || programEqual(s.Paths[pid], rule.Program, rule.Source)
+			}
+			if matched && !identityUnresolved {
+				relevance = "process"
+			}
+		} else if knownPortRestriction(rule.LocalPorts) && !identityUnresolved {
+			relevance = "endpoint"
+		}
+		if identityUnresolved {
+			reasons = append(reasons, "Application package, service, user or security restrictions are unresolved; this rule is not established as relevant to the socket owner.")
+		}
+		candidate := Candidate{Rule: rule, Match: "conditional", Reasons: reasons, Relevance: relevance}
 		if rule.Direction == "inbound" || rule.Direction == "both" || rule.Direction == "unknown" {
 			c.Inbound.Rules = append(c.Inbound.Rules, candidate)
 		}
@@ -283,6 +302,20 @@ func addressMayMatch(values []string, address netip.Addr) bool {
 		if strings.EqualFold(v, "any") || v == "*" {
 			return true
 		}
+		if ipValue, maskValue, ok := strings.Cut(v, "/"); ok {
+			ip, ipErr := netip.ParseAddr(ipValue)
+			mask, maskErr := netip.ParseAddr(maskValue)
+			if ipErr == nil && maskErr == nil && ip.Unmap().Is4() && mask.Unmap().Is4() {
+				raw := mask.Unmap().As4()
+				ones, bits := net.IPMask(raw[:]).Size()
+				if bits == 32 {
+					if netip.PrefixFrom(ip.Unmap(), ones).Contains(address) {
+						return true
+					}
+					continue
+				}
+			}
+		}
 		if prefix, e := netip.ParsePrefix(v); e == nil {
 			if prefix.Addr().Is4In6() {
 				if prefix.Bits() < 96 {
@@ -315,4 +348,27 @@ func addressMayMatch(values []string, address netip.Addr) bool {
 		}
 	}
 	return unknown
+}
+
+// A known local-port restriction establishes endpoint relation, not permission.
+// Missing values, dynamic keywords and unrestricted ranges stay unverified.
+func knownPortRestriction(values []string) bool {
+	if len(values) == 0 {
+		return false
+	}
+	for _, value := range values {
+		if a, b, ok := strings.Cut(value, "-"); ok {
+			lo, e1 := strconv.Atoi(a)
+			hi, e2 := strconv.Atoi(b)
+			if e1 != nil || e2 != nil || lo < 0 || hi > 65535 || lo > hi || (lo <= 1 && hi == 65535) {
+				return false
+			}
+			continue
+		}
+		n, err := strconv.Atoi(value)
+		if err != nil || n < 1 || n > 65535 {
+			return false
+		}
+	}
+	return true
 }
