@@ -1,64 +1,62 @@
-# SockLens v0.8.0
+# SockLens v0.9.0
 
-Test TCP reachability to an explicit host and selected ports with the new probe
-command, on Windows, macOS and Linux/WSL.
+Watch sockets using OS event notifications on Linux, Windows, and macOS, with
+explicit backend selection and a polling fallback when tracing is unavailable.
 
 ```sh
-socklens probe --host 127.0.0.1 --ports 8080
-socklens probe --host 192.168.1.20 --ports 80,443
-socklens probe --host localhost --ports 8080 --family ipv4
-socklens probe --host ::1 --ports 8080 --json
+socklens watch --changes
+socklens watch --backend events --changes --json
+socklens watch --backend poll --interval 1s
 ```
 
 ## Included
 
-- Required --host and --ports, optional --family any/ipv4/ipv6.
-- One-time hostname resolution and numeric TCP4/TCP6 attempts per selected IP/port;
-  actual attempted addresses and available local/remote socket endpoints retained.
-- --connect-timeout (3s default, 100ms–30s), --timeout (15s total, 1s–5m), and
-  --concurrency (4 default, 1–32). Total timeout includes DNS and queued work.
-- Bounds of 64 distinct ports, 16 selected addresses and 256 total attempts;
-  oversized/invalid requests fail before connections, without silent truncation.
-- Connected, refused, timed-out, network-error, cancelled and not-attempted results.
-- Immediate connection close and no application payloads, banners, TLS, UDP,
-  automatic retries, remote PID guesses or background update checks.
-- Partial reports after cancellation or total deadline; responsive/color-controlled
-  text and one complete JSON report with schema version 1.
-- Exit 0 all connected; 2 unsuccessful/incomplete connections or total deadline;
-  1 input/DNS/planning/output failure; 130 interrupted.
+- Linux eBPF notifications through an installed bpftrace executable.
+- Native Windows ETW subscriptions to Winsock-AFD and Kernel-Network events,
+  with no helper executable or additional Go dependencies.
+- macOS notifications through the system /usr/sbin/dtrace tool.
+- Default --backend auto attempts tracing, reports the active backend on stderr,
+  and falls back to polling if attachment fails.
+- --backend events requires tracing and reports attachment failures; --backend
+  poll explicitly selects the previous periodic snapshot behavior.
+- An immediate baseline, existing filters, change batches, and unchanged JSON
+  record schemas. Notifications trigger fresh socket-table snapshots.
+- Coalesced notifications, cancellation, bounded helper diagnostics, and explicit
+  failure if a tracing source stops after attachment.
 
-A successful TCP connection establishes reachability from this client at that
-time. Application health, service identity and security are not established.
-Refusal may originate at target or intermediary. Timeouts do not identify a
-firewall or establish a closed port. Existing local/audit commands stay passive.
+## Requirements and limitations
 
-All supported macOS, Windows and Linux amd64/arm64 binaries are included, with
-installer promotion after required checks. No Go installation or source checkout
-is needed and no external Go modules were added.
+Tracing requires appropriate privileges, usually root on Linux/macOS and an
+administrator or tracing-enabled account on Windows. Linux additionally requires
+bpftrace and the relevant kernel tracepoints. macOS SIP can restrict probes even
+as root: auto mode falls back, and SockLens never changes SIP or elevates itself.
 
-## Upgrade
+Event snapshots are best-effort, not a lossless socket history. Short-lived
+sockets, dropped notifications, ownership changes, and UDP operations outside
+the traced hooks may be missed. Descriptor closes or Windows network activity
+can cause unchanged refreshes. ETW buffering can delay updates by about a second.
+Use polling if periodic reconciliation is needed.
 
-On macOS/Linux run socklens update, then socklens version.
-On Windows v0.5.2 or newer:
+--interval applies only to polling. --count counts collected snapshots, including
+quiet ones with --changes; an idle event watch can wait indefinitely before
+reaching the count. --count 1 collects once without starting tracing.
 
-```powershell
-socklens update
-socklens update --status
-```
+## Distribution and upgrade
 
-Wait for completed status, then verify socklens version reports v0.8.0 and run
-socklens probe --help. Windows Scoop v0.5.0/v0.5.1 needs scoop update followed by
-scoop update socklens once. v0.4.0 and older need an initial installer upgrade.
+Release packages cover Linux, Windows, and macOS on amd64 and arm64, with
+SHA256SUMS, Homebrew formula, and Scoop manifest. Installer promotion follows
+publication and fresh installation checks. No Go installation is required.
 
-See README and docs/probe.md for every option, JSON field, limit and example.
+After publication, run socklens update and socklens version. On Windows, use
+socklens update --status to wait for completion. Existing Homebrew and Scoop
+installations can also use their package manager's upgrade command.
 
 ## Validation
 
-Tests cover input/target limits, one-time DNS/numeric pinning, mixed families,
-concurrency, refusal/error classification, cancellation/queued work, deadlines,
-connection closure and no payloads, output failures, escaping/layout/colors,
-JSON and exit codes. Real local IPv4/IPv6 listeners and refused ports are included
-in native Windows/macOS/Linux CI. Linux race/security, packaging and fresh
-installer checks gate publication and promotion.
+CI gates publication on checks, Linux race tests, vulnerability scanning,
+native Windows/macOS/Linux tests, and verified packaging. Privileged Linux and
+Windows tracing tests exercise TCP/UDP socket opens and closes. macOS tracing
+tests explicitly report skips when SIP or unavailable probes prevent attachment;
+skips do not establish that tracing works on those hosts.
 
 Licensed under MIT.

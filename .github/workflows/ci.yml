@@ -45,8 +45,22 @@ jobs:
           go-version: stable
           cache: false
       - run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+  events:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+          cache: false
+      - run: sudo apt-get update && sudo apt-get install -y bpftrace
+      - run: go test -c -o "$RUNNER_TEMP/platform-events.test" ./internal/platform
+      - run: sudo env SOCKLENS_EVENT_INTEGRATION=1 "$RUNNER_TEMP/platform-events.test" -test.v -test.run '^TestSocketEventsLive$' -test.timeout 30s
+
   package:
-    needs: [test, security, installation, native]
+    needs: [test, security, installation, native, events]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -98,6 +112,18 @@ jobs:
       - run: go vet ./...
       - run: go test -v ./...
       - run: go build -o socklens-native ./cmd/socklens
+
+      - name: Test Windows ETW socket lifecycle
+        if: runner.os == 'Windows'
+        env:
+          SOCKLENS_EVENT_INTEGRATION: '1'
+        run: go test -v ./internal/platform -run '^TestSocketEventsLive$' -timeout 40s
+
+      - name: Test macOS DTrace socket lifecycle when permitted by SIP
+        if: runner.os == 'macOS'
+        run: |
+          go test -c -o "$RUNNER_TEMP/socklens-events.test" ./internal/platform
+          sudo env SOCKLENS_EVENT_INTEGRATION=1 SOCKLENS_EVENT_ALLOW_UNAVAILABLE=1 "$RUNNER_TEMP/socklens-events.test" -test.v -test.run '^TestSocketEventsLive$' -test.timeout 40s
 
       - name: Test standalone Windows installer without Go on PATH
         if: runner.os == 'Windows'

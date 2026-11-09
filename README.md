@@ -568,19 +568,51 @@ socklens watch --changes --json
 
 Takes the first snapshot immediately. Stop with Ctrl+C.
 
+`--backend auto` first tries OS event notifications. If attachment is unavailable,
+it reports the reason on stderr and uses polling. Go runtime dependencies remain
+standard-library-only; no tracing helper is bundled in the release binaries.
+
+| Platform | Event source | Requirements |
+| --- | --- | --- |
+| Linux | eBPF tracepoints | Installed `bpftrace` and kernel tracing privileges (usually root) |
+| Windows amd64/arm64 | Native ETW Winsock-AFD and Kernel-Network providers | Administrator or sufficient ETW tracing permissions; no helper executable |
+| macOS Intel/Apple Silicon | System DTrace TCP state and syscall probes | `/usr/sbin/dtrace`, tracing privileges (usually root), and probes permitted by SIP |
+
+macOS SIP can restrict tracing even as root. SockLens reports attachment failures
+and falls back in auto mode; it never changes SIP or elevates privileges itself.
+Windows uses a uniquely named private ETW session and stops only its own session
+on shutdown. ETW buffering can delay snapshots by about a second. Neither backend
+periodically enumerates socket tables while waiting for notifications.
+
+Use `--backend events` to require OS events or `--backend poll` to explicitly
+select polling. Backend messages go to stderr, preserving JSON stdout. A helper
+failure after attachment stops the watch with an error rather than silently
+leaving a stale display. A single snapshot (`--count 1`) does not start tracing.
+
 | Option | Default | Meaning |
 | --- | --- | --- |
-| --interval DURATION | 2s | Wait between completed snapshots; minimum 100ms |
-| --count N | 0 | Stop after N polls; 0 keeps watching |
+| --backend auto/events/poll | auto | Prefer OS events with polling fallback; events requires tracing |
+| --interval DURATION | 2s | Polling delay; minimum 100ms; unused with events |
+| --count N | 0 | Stop after N snapshots (including quiet ones); 0 keeps watching |
 | --changes | Off | Emit a baseline, then only additions, removals, and updates |
 
 All shared discovery options are supported.
 
-In normal mode, each refresh prints a timestamp and socket table. With --changes, the first output is the baseline. Later output uses ADDED, REMOVED, and UPDATED BEFORE/AFTER; unchanged polls stay quiet. --count counts polls, including quiet ones.
+In normal mode, each refresh prints a timestamp and socket table. With --changes, the first output is the baseline. Later output uses ADDED, REMOVED, and UPDATED BEFORE/AFTER; unchanged snapshots stay quiet. --count counts snapshots, including quiet ones. In event mode an idle system can wait indefinitely before reaching the count.
 
 With --json, each emitted record is one JSON line. Normal records contain timestamp and sockets; change records contain timestamp, baseline, added, removed, and updated. Updates include before/after socket details.
 
 Polling can miss connections that open and close between refreshes.
+
+Linux and macOS events trigger socket-table collection after TCP state transitions
+and bind/connect/listen/accept/shutdown/close syscalls. Windows ETW notifications
+include socket lifecycle and network activity. Notifications are coalesced.
+Close notifications can also concern non-socket descriptors and cause unchanged
+snapshots. This is event-triggered snapshot monitoring, not a lossless history:
+short-lived sockets, dropped tracing notifications, ownership changes, and UDP
+implicit binds or disconnects outside these hooks may be missed. Visibility is
+still limited to accessible sockets (and the current network namespace on Linux). Use
+polling when periodic reconciliation is needed.
 
 ### wait
 

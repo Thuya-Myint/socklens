@@ -70,6 +70,45 @@ type cancelWriter struct {
 	calls  int
 }
 
+type testSocketEvents struct {
+	wait func(context.Context) error
+}
+
+func (s testSocketEvents) Wait(ctx context.Context) error { return s.wait(ctx) }
+func (s testSocketEvents) Close() error                   { return nil }
+
+func TestWatchEventSnapshots(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	calls, waits := 0, 0
+	events := testSocketEvents{wait: func(context.Context) error { waits++; return nil }}
+	err := watchSnapshotsWithEvents(ctx, io.Discard, socketOptions{json: true}, time.Hour, 3, func() ([]platform.Socket, error) {
+		calls++
+		return nil, nil
+	}, events)
+	if err != nil || ctx.Err() != nil || calls != 3 || waits != 2 {
+		t.Fatalf("err=%v calls=%d waits=%d", err, calls, waits)
+	}
+}
+
+func TestWatchEventFailure(t *testing.T) {
+	want := errors.New("tracer disconnected")
+	events := testSocketEvents{wait: func(context.Context) error { return want }}
+	err := watchSnapshotsWithEvents(context.Background(), io.Discard, socketOptions{json: true}, time.Hour, 0, func() ([]platform.Socket, error) { return nil, nil }, events)
+	if !errors.Is(err, want) {
+		t.Fatalf("lost event error: %v", err)
+	}
+}
+
+func TestWatchEventCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	events := testSocketEvents{wait: func(ctx context.Context) error { cancel(); return ctx.Err() }}
+	if err := watchSnapshotsWithEvents(ctx, io.Discard, socketOptions{json: true}, time.Hour, 0, func() ([]platform.Socket, error) { return nil, nil }, events); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func (w *cancelWriter) Write(p []byte) (int, error) {
 	w.calls++
 	w.cancel()
@@ -143,6 +182,7 @@ func TestWatchArguments(t *testing.T) {
 		code    int
 		message string
 	}{
+		{[]string{"watch", "--backend", "invalid"}, 1, "backend must"},
 		{[]string{"watch", "--help"}, 0, "interval"},
 		{[]string{"watch", "--interval", "bad"}, 1, "invalid value"},
 		{[]string{"watch", "--interval", "0s"}, 1, "at least 100ms"},

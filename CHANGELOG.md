@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.9.0 — 2026-11-09
+
+- Event-triggered watch snapshots through Linux bpftrace, native Windows ETW, and macOS system DTrace, with explicit auto/events/poll backend selection.
+- Automatic polling fallback when tracing is unavailable; existing JSON record schemas are preserved. macOS SIP restrictions are reported without changing security settings.
+- Helper lifecycle/cancellation tests, Windows ETW ABI regressions, and opt-in privileged TCP/UDP lifecycle integration tests. CI requires Linux and Windows tracing checks and explicitly reports macOS skips when SIP prevents tracing.
+- Event snapshots remain best-effort and can miss short-lived sockets; tracing privileges are required. Only Linux needs an additional helper installed.
+
 ## v0.8.0 — 2026-11-04
 
 - Explicit TCP probe command for one host and selected numeric ports, with IPv4/IPv6 and one-time DNS resolution.
