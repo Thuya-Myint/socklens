@@ -139,7 +139,7 @@ func TestWatchLiveListenerLifecycle(t *testing.T) {
 	var stderr bytes.Buffer
 	done := make(chan int, 1)
 	go func() {
-		code := RunContext(ctx, []string{"watch", "--port", port, "--pid", strconv.Itoa(os.Getpid()), "--listening", "--interval", "100ms", "--count", "3", "--json"},
+		code := RunContext(ctx, []string{"watch", "--backend", "poll", "--changes=false", "--port", port, "--pid", strconv.Itoa(os.Getpid()), "--listening", "--interval", "100ms", "--count", "3", "--json"},
 			strings.NewReader(""), writer, &stderr, "test")
 		writer.Close()
 		done <- code
@@ -190,7 +190,7 @@ func TestWatchChangesLiveRemoval(t *testing.T) {
 	var stderr bytes.Buffer
 	done := make(chan int, 1)
 	go func() {
-		code := RunContext(ctx, []string{"watch", "--changes", "--json", "--port", port, "--pid", strconv.Itoa(os.Getpid()), "--interval", "100ms", "--count", "3"},
+		code := RunContext(ctx, []string{"watch", "--backend", "poll", "--changes", "--json", "--port", port, "--pid", strconv.Itoa(os.Getpid()), "--interval", "100ms", "--count", "3"},
 			strings.NewReader(""), writer, &stderr, "test")
 		writer.Close()
 		done <- code

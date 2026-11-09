@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.9.1 — 2026-11-09
+
+- Plain watch now requires events and emits only changes after its baseline. Polling and polling fallback require explicit backend selection.
+- Interactive Linux watch offers a confirmed bpftrace installation through supported system package managers.
+- Interactive watch requests OS-managed administrator access when tracing permissions are missing: sudo on Linux/macOS and UAC with a new administrator window on Windows.
+- Noninteractive, redirected, and JSON runs never prompt, install, or elevate. Denied access and macOS SIP restrictions fail without an elevation loop.
+
 ## v0.9.0 — 2026-11-09
 
 - Event-triggered watch snapshots through Linux bpftrace, native Windows ETW, and macOS system DTrace, with explicit auto/events/poll backend selection.

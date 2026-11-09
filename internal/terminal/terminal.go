@@ -47,6 +47,13 @@ func Style(out io.Writer, role Role, value string) string {
 }
 
 func IsTerminal(out io.Writer) bool {
+	for {
+		styled, ok := out.(*writer)
+		if !ok {
+			break
+		}
+		out = styled.Writer
+	}
 	file, ok := out.(*os.File)
 	return ok && isTerminal(file)
 }

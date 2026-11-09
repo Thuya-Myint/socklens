@@ -560,16 +560,32 @@ for the JSON schema, limits, cancellation behavior, and interpretation examples.
 
 ```sh
 socklens watch
-socklens watch --listening --interval 1s
+socklens watch --listening
 socklens watch --port 8080 --count 5
-socklens watch --changes --protocol tcp
-socklens watch --changes --json
+socklens watch --protocol tcp
+socklens watch --json
 ```
 
 Takes the first snapshot immediately. Stop with Ctrl+C.
 
-`--backend auto` first tries OS event notifications. If attachment is unavailable,
-it reports the reason on stderr and uses polling. Go runtime dependencies remain
+Plain `socklens watch` requires OS events, prints an initial baseline, then emits
+only matching additions, removals, and updates. Unchanged notifications stay
+quiet. Tracing failures are reported rather than switching to polling.
+
+In an interactive terminal, missing prerequisites are handled during startup:
+
+- Linux offers to install `bpftrace` if missing. It shows the package-manager
+  commands and asks for confirmation before running them. Supported managers are
+  apt-get, dnf, yum, pacman, zypper, and apk; unsupported systems receive guidance.
+- Linux and macOS request administrator access through the system sudo prompt
+  when tracing fails for lack of privileges, then restart the same watch.
+- Windows requests access through UAC when ETW returns access denied. After
+  approval the same watch opens in a new administrator window.
+
+No helper is installed on Windows or macOS. Passwords are handled by the OS, not
+SockLens. Declining setup or access stops the watch. JSON runs and redirected or
+noninteractive streams never prompt, install, or elevate; prepare the prerequisites
+and privileges before running those workflows. Go runtime dependencies remain
 standard-library-only; no tracing helper is bundled in the release binaries.
 
 | Platform | Event source | Requirements |
@@ -578,29 +594,35 @@ standard-library-only; no tracing helper is bundled in the release binaries.
 | Windows amd64/arm64 | Native ETW Winsock-AFD and Kernel-Network providers | Administrator or sufficient ETW tracing permissions; no helper executable |
 | macOS Intel/Apple Silicon | System DTrace TCP state and syscall probes | `/usr/sbin/dtrace`, tracing privileges (usually root), and probes permitted by SIP |
 
-macOS SIP can restrict tracing even as root. SockLens reports attachment failures
-and falls back in auto mode; it never changes SIP or elevates privileges itself.
+macOS SIP can restrict tracing even as root. SockLens reports those failures
+without repeatedly requesting access; it never changes SIP.
 Windows uses a uniquely named private ETW session and stops only its own session
 on shutdown. ETW buffering can delay snapshots by about a second. Neither backend
 periodically enumerates socket tables while waiting for notifications.
 
-Use `--backend events` to require OS events or `--backend poll` to explicitly
-select polling. Backend messages go to stderr, preserving JSON stdout. A helper
+Use `--backend poll` to explicitly select polling, or `--backend auto` to opt into
+polling fallback when tracing is unavailable. Backend messages go to stderr, preserving JSON stdout. A helper
 failure after attachment stops the watch with an error rather than silently
 leaving a stale display. A single snapshot (`--count 1`) does not start tracing.
 
 | Option | Default | Meaning |
 | --- | --- | --- |
-| --backend auto/events/poll | auto | Prefer OS events with polling fallback; events requires tracing |
+| --backend events/auto/poll | events | Require OS events; auto explicitly permits polling fallback |
 | --interval DURATION | 2s | Polling delay; minimum 100ms; unused with events |
 | --count N | 0 | Stop after N snapshots (including quiet ones); 0 keeps watching |
-| --changes | Off | Emit a baseline, then only additions, removals, and updates |
+| --changes | On | Emit a baseline, then only additions, removals, and updates; --changes=false prints full snapshots |
 
 All shared discovery options are supported.
 
-In normal mode, each refresh prints a timestamp and socket table. With --changes, the first output is the baseline. Later output uses ADDED, REMOVED, and UPDATED BEFORE/AFTER; unchanged snapshots stay quiet. --count counts snapshots, including quiet ones. In event mode an idle system can wait indefinitely before reaching the count.
+By default, the first output is the baseline. Later output uses ADDED, REMOVED,
+and UPDATED BEFORE/AFTER; unchanged snapshots stay quiet. With --changes=false,
+each refresh prints a timestamp and socket table. --count counts snapshots,
+including quiet ones. An idle event watch can wait indefinitely before reaching
+the count.
 
-With --json, each emitted record is one JSON line. Normal records contain timestamp and sockets; change records contain timestamp, baseline, added, removed, and updated. Updates include before/after socket details.
+With --json, each emitted record is one JSON line containing timestamp, baseline,
+added, removed, and updated. Updates include before/after socket details. With
+--changes=false, records contain timestamp and sockets, as in earlier releases.
 
 Polling can miss connections that open and close between refreshes.
 

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 )
 
 // Descriptor-close probes also produce non-socket invalidations. Excluding our
@@ -27,9 +28,18 @@ tracepoint:syscalls:sys_exit_close*
 func WatchSocketEvents(ctx context.Context) (SocketEvents, error) {
 	path, err := exec.LookPath("bpftrace")
 	if err != nil {
-		return nil, fmt.Errorf("Linux events require bpftrace and kernel tracing privileges: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrEventHelperMissing, err)
 	}
-	return startSocketEvents(ctx, path)
+	source, err := startSocketEvents(ctx, path)
+	if err != nil && os.Geteuid() != 0 && eventPermissionError(err) {
+		return nil, fmt.Errorf("%w: %w", ErrEventPrivileges, err)
+	}
+	return source, err
+}
+
+func eventPermissionError(err error) bool {
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "permission denied") || strings.Contains(message, "operation not permitted") || strings.Contains(message, "must be run as root")
 }
 
 func startSocketEvents(ctx context.Context, path string) (SocketEvents, error) {

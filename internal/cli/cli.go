@@ -35,7 +35,7 @@ Connect:
   probe          Test TCP connections to an explicit host and ports
 
 Monitor:
-  watch          Repeat snapshots; --changes shows only changes
+  watch          Watch socket changes using OS events
   wait PORT      Wait for sockets to appear or disappear
 
 Manage:
@@ -126,7 +126,7 @@ func RunContext(ctx context.Context, args []string, in io.Reader, out, errOut io
 	case "audit":
 		return auditCommand(ctx, args[1:], out, errOut, platform.List)
 	case "watch":
-		return watchCommand(ctx, args[1:], out, errOut)
+		return watchCommand(ctx, args[1:], in, out, errOut, mode)
 	case "wait":
 		return waitCommand(ctx, args[1:], out, errOut)
 	case "update":

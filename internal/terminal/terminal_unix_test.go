@@ -17,6 +17,9 @@ func TestTerminalWidthTracksResizeWithAndWithoutColor(t *testing.T) {
 	}
 	t.Cleanup(func() { master.Close() })
 	tty := testTerminalSide(t, master)
+	if !IsTerminal(Wrap(Wrap(tty, "never"), "auto")) {
+		t.Fatal("styled terminal must remain interactive")
+	}
 	t.Setenv("NO_COLOR", "")
 	t.Setenv("TERM", "xterm")
 	for _, columns := range []uint16{40, 120, 80} {

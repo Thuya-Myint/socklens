@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Thuya-Myint/socklens/internal/platform"
+	"github.com/Thuya-Myint/socklens/internal/watchsetup"
 )
 
 func TestWatchSnapshotsStream(t *testing.T) {
@@ -88,6 +89,76 @@ func TestWatchEventSnapshots(t *testing.T) {
 	}, events)
 	if err != nil || ctx.Err() != nil || calls != 3 || waits != 2 {
 		t.Fatalf("err=%v calls=%d waits=%d", err, calls, waits)
+	}
+}
+
+func TestWatchDefaultsRequireEvents(t *testing.T) {
+	want := errors.New("tracing unavailable")
+	var out, stderr bytes.Buffer
+	collected := false
+	code := watchCommandWithSources(context.Background(), nil, &out, &stderr,
+		func(context.Context) (platform.SocketEvents, error) { return nil, want },
+		func() ([]platform.Socket, error) { collected = true; return nil, nil })
+	if code != 1 || collected || out.Len() != 0 || !strings.Contains(stderr.String(), want.Error()) {
+		t.Fatalf("code=%d collected=%v out=%s stderr=%s", code, collected, &out, &stderr)
+	}
+}
+
+func TestWatchRelaunchedDoesNotCollectOrFallBack(t *testing.T) {
+	for _, args := range [][]string{nil, {"--backend", "auto"}} {
+		var out, stderr bytes.Buffer
+		code := watchCommandWithSources(context.Background(), args, &out, &stderr,
+			func(context.Context) (platform.SocketEvents, error) { return nil, watchsetup.ErrRelaunched },
+			func() ([]platform.Socket, error) { t.Fatal("collected after elevation"); return nil, nil })
+		if code != 0 || out.Len() != 0 || stderr.Len() != 0 {
+			t.Fatalf("code=%d out=%s err=%s", code, &out, &stderr)
+		}
+	}
+}
+
+func TestWatchDeclinedSetupDoesNotFallBack(t *testing.T) {
+	var out, stderr bytes.Buffer
+	code := watchCommandWithSources(context.Background(), []string{"--backend", "auto"}, &out, &stderr,
+		func(context.Context) (platform.SocketEvents, error) { return nil, watchsetup.ErrSetupStopped },
+		func() ([]platform.Socket, error) { t.Fatal("polled after setup was declined"); return nil, nil })
+	if code != 1 || out.Len() != 0 || strings.Contains(stderr.String(), "using polling") {
+		t.Fatalf("code=%d out=%s err=%s", code, &out, &stderr)
+	}
+}
+
+func TestWatchDefaultsSuppressUnchangedEvents(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	var out, stderr bytes.Buffer
+	calls, waits := 0, 0
+	row := platform.Socket{Protocol: "tcp", Local: "127.0.0.1:8080", State: "LISTEN"}
+	events := testSocketEvents{wait: func(context.Context) error { waits++; return nil }}
+	code := watchCommandWithSources(ctx, []string{"--json", "--count", "3"}, &out, &stderr,
+		func(context.Context) (platform.SocketEvents, error) { return events, nil },
+		func() ([]platform.Socket, error) {
+			calls++
+			if calls == 3 {
+				return nil, nil
+			}
+			return []platform.Socket{row}, nil
+		})
+	if code != 0 || ctx.Err() != nil || calls != 3 || waits != 2 {
+		t.Fatalf("code=%d calls=%d waits=%d stderr=%s", code, calls, waits, &stderr)
+	}
+	decoder := json.NewDecoder(&out)
+	var baseline, removal changeSet
+	if err := decoder.Decode(&baseline); err != nil {
+		t.Fatal(err)
+	}
+	if err := decoder.Decode(&removal); err != nil {
+		t.Fatal(err)
+	}
+	if !baseline.Baseline || len(baseline.Added) != 1 || removal.Baseline || len(removal.Removed) != 1 {
+		t.Fatalf("baseline=%+v removal=%+v", baseline, removal)
+	}
+	var extra changeSet
+	if err := decoder.Decode(&extra); err != io.EOF {
+		t.Fatalf("unchanged event produced output: %v", err)
 	}
 }
 

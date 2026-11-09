@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Thuya-Myint/socklens/internal/platform"
+	"github.com/Thuya-Myint/socklens/internal/watchsetup"
 )
 
 type snapshot struct {
@@ -17,13 +19,20 @@ type snapshot struct {
 	Sockets   []platform.Socket `json:"sockets"`
 }
 
-func watchCommand(ctx context.Context, args []string, out, errOut io.Writer) int {
+func watchCommand(ctx context.Context, args []string, in io.Reader, out, errOut io.Writer, colorMode string) int {
+	restartArgs := append([]string{"--color=" + colorMode}, args...)
+	return watchCommandWithSources(ctx, args, out, errOut, func(ctx context.Context) (platform.SocketEvents, error) {
+		return watchsetup.Subscribe(ctx, restartArgs, in, out, errOut)
+	}, platform.List)
+}
+
+func watchCommandWithSources(ctx context.Context, args []string, out, errOut io.Writer, subscribe func(context.Context) (platform.SocketEvents, error), list func() ([]platform.Socket, error)) int {
 	fs := newCommandFlags("watch", errOut)
 	opts := addSocketFlags(fs)
-	fs.BoolVar(&opts.changes, "changes", false, "report only changes after an initial baseline")
+	fs.BoolVar(&opts.changes, "changes", true, "report only changes after an initial baseline")
 	interval := fs.Duration("interval", 2*time.Second, "polling delay (minimum 100ms; unused with events)")
 	count := fs.Int("count", 0, "number of snapshots; 0 watches until interrupted")
-	backend := fs.String("backend", "auto", "watch backend: auto, events (OS tracing), or poll")
+	backend := fs.String("backend", "events", "watch backend: events (default), auto, or poll")
 	if err := parseCommandFlags(fs, args, errOut); err != nil {
 		if err == flag.ErrHelp {
 			return 0
@@ -45,9 +54,18 @@ func watchCommand(ctx context.Context, args []string, out, errOut io.Writer) int
 	var events platform.SocketEvents
 	if *backend != "poll" && *count != 1 && ctx.Err() == nil {
 		var err error
-		events, err = platform.WatchSocketEvents(ctx)
+		events, err = subscribe(ctx)
+		if events != nil {
+			defer events.Close()
+		}
 		if ctx.Err() != nil {
 			return 0
+		}
+		if errors.Is(err, watchsetup.ErrRelaunched) {
+			return 0
+		}
+		if errors.Is(err, watchsetup.ErrSetupStopped) {
+			return fail(errOut, err)
 		}
 		if err != nil {
 			if *backend == "events" {
@@ -55,11 +73,10 @@ func watchCommand(ctx context.Context, args []string, out, errOut io.Writer) int
 			}
 			fmt.Fprintln(errOut, "watch: using polling:", err)
 		} else {
-			defer events.Close()
 			fmt.Fprintf(errOut, "watch: using %s socket events\n", runtime.GOOS)
 		}
 	}
-	if err := watchSnapshotsWithEvents(ctx, out, *opts, *interval, *count, platform.List, events); err != nil {
+	if err := watchSnapshotsWithEvents(ctx, out, *opts, *interval, *count, list, events); err != nil {
 		return fail(errOut, err)
 	}
 	return 0

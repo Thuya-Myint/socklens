@@ -150,7 +150,7 @@ func WatchSocketEvents(ctx context.Context) (SocketEvents, error) {
 	copy(unsafe.Slice((*uint16)(unsafe.Add(unsafe.Pointer(&s.properties[0]), size)), len(name)), name)
 	code, _, _ := startTrace.Call(uintptr(unsafe.Pointer(&s.session)), uintptr(unsafe.Pointer(&name[0])), s.propertiesPointer())
 	if code != 0 {
-		return nil, fmt.Errorf("start Windows ETW session (administrator or tracing permissions required): %w", syscall.Errno(code))
+		return nil, windowsEventError("start Windows ETW session", code)
 	}
 	// Enable both lifecycle (AFD bind/listen/close) and TCP/IP network events.
 	// A private, uniquely named session is stopped on every failure and Close;
@@ -164,7 +164,7 @@ func WatchSocketEvents(ctx context.Context) (SocketEvents, error) {
 		code, _, _ = enableTrace.Call(uintptr(s.session), uintptr(unsafe.Pointer(&providers[i])), 1, 5, 0, 0, 0, 0)
 		if code != 0 {
 			stopSession()
-			return nil, fmt.Errorf("enable Windows socket ETW provider: %w", syscall.Errno(code))
+			return nil, windowsEventError("enable Windows socket ETW provider", code)
 		}
 	}
 	s.log.LoggerName = &s.name[0]
@@ -174,6 +174,9 @@ func WatchSocketEvents(ctx context.Context) (SocketEvents, error) {
 	consumer, _, openErr := openTrace.Call(uintptr(unsafe.Pointer(&s.log)))
 	if consumer == ^uintptr(0) {
 		stopSession()
+		if openErr == syscall.Errno(5) {
+			return nil, windowsEventError("open Windows ETW consumer", 5)
+		}
 		return nil, fmt.Errorf("open Windows ETW consumer: %w", openErr)
 	}
 	s.consumer = uint64(consumer)
@@ -197,6 +200,13 @@ func WatchSocketEvents(ctx context.Context) (SocketEvents, error) {
 		}
 	}()
 	return s, nil
+}
+
+func windowsEventError(operation string, code uintptr) error {
+	if code == 5 {
+		return fmt.Errorf("%s: %w: %w", operation, ErrEventPrivileges, syscall.Errno(code))
+	}
+	return fmt.Errorf("%s: %w", operation, syscall.Errno(code))
 }
 
 func (s *windowsSocketEvents) Wait(ctx context.Context) error {

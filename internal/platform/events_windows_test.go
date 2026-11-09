@@ -3,9 +3,21 @@
 package platform
 
 import (
+	"errors"
+	"syscall"
 	"testing"
 	"unsafe"
 )
+
+func TestWindowsWatchPrivilegeErrors(t *testing.T) {
+	err := windowsEventError("start tracing", 5)
+	if !errors.Is(err, ErrEventPrivileges) || !errors.Is(err, syscall.Errno(5)) {
+		t.Fatalf("lost permission error: %v", err)
+	}
+	if err := windowsEventError("start tracing", 87); errors.Is(err, ErrEventPrivileges) {
+		t.Fatalf("invalid parameters requested elevation: %v", err)
+	}
+}
 
 // These ABI sizes/offsets are fixed by the Windows SDK on amd64 and arm64.
 // A layout regression would corrupt memory in OpenTraceW or its callback.
