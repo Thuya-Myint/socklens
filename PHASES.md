@@ -2,7 +2,7 @@
 
 ## Current phase: explicit TLS certificate checks (2026-11-10)
 
-Published baseline is v0.9.1. Added an unreleased tls command for one explicit
+The v0.10.0 phase adds a tls command for one explicit
 host/port, hostname and chain verification, validity evidence, negotiated TLS
 details, expiry warnings, finding codes, and next steps. Private CA files add
 trust for this check only; verification is never disabled. Selected addresses
@@ -15,7 +15,11 @@ Windows amd64/ARM64 / macOS amd64/ARM64 vet, binary, and TLS-test compilation
 passed. Owned loopback fixtures exercise TLS 1.2/1.3, private trust, expiry,
 hostname mismatch, untrusted certificates, deadlines, cancellation, legacy TLS
 rejection, no application requests, DNS pinning/limits, and output escaping.
-Native remote CI and publication have not run for this phase.
+Native remote CI passed for source 3e64cf7090916aaa0622cf32bbdb0f7c104bfe53:
+https://github.com/Thuya-Myint/socklens/actions/runs/42808014059.
+All jobs passed, including native Windows/macOS/Linux tests, Linux race/security,
+installers, and six-platform packaging. Publication and installer promotion are
+handled by the tagged release workflow after its required checks.
 
 Earlier reports below retain their historical publication and platform status.
 

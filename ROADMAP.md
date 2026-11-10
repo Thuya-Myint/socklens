@@ -1,8 +1,8 @@
 # SockLens roadmap
 
-Status: published through v0.9.1 (event-triggered watch and guided setup). The next
-phase starts with explicit TLS certificate checks, implemented locally and not
-yet released. The v0.5.x line provides discovery, process controls, installers,
+Status: the v0.10.0 phase adds explicit TLS certificate checks, implemented and
+verified by all-platform CI. v0.9.1 provides event-triggered watch and guided
+setup. The v0.5.x line provides discovery, process controls, installers,
 and updates. Sections distinguish implemented work from proposals; this is not a
 release promise.
 The owner wants SockLens to grow from local port inspection into service exposure
@@ -98,7 +98,7 @@ Existing local commands keep their meaning and do not start network probes.
 
 ## Current phase: explicit TLS certificate checks
 
-Implemented locally: `socklens tls --host HOST [--port PORT]`, with one-time DNS,
+Implemented: `socklens tls --host HOST [--port PORT]`, with one-time DNS,
 numeric address pinning, per-address TCP/TLS deadlines, a total deadline,
 hostname/chain verification, validity dates, negotiated TLS version/cipher,
 SHA-256 evidence, expiry warnings, text/JSON output, and explicit private CA trust

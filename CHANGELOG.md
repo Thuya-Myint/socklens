@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.10.0 — 2026-11-10
 
 - Explicit TLS certificate checks for one host/port, with bounded per-address and total deadlines, one-time DNS resolution, numeric pinning, and cancellation.
 - Hostname/chain verification, certificate validity and SHA-256 evidence, negotiated TLS details, expiry warnings, stable certificate finding codes, and remediation guidance.
