@@ -123,6 +123,9 @@ func normalizeHost(value string) (string, error) {
 	}
 	return value, nil
 }
+
+// NormalizeHost validates one explicit unicast IP or ASCII DNS name.
+func NormalizeHost(value string) (string, error) { return normalizeHost(value) }
 func unicast(a netip.Addr) bool {
 	return a.IsGlobalUnicast() || a.IsLoopback() || a.IsLinkLocalUnicast()
 }

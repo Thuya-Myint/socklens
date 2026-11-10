@@ -1,7 +1,10 @@
 # SockLens roadmap
 
-Status: local audit/owner improvements and explicit TCP probes implemented through v0.8.0 on 2026-11-04; later work remains proposed. The v0.5.x line provides discovery, process controls, installers, and updates.
-This document describes future work, not completed commands or a release promise.
+Status: published through v0.9.1 (event-triggered watch and guided setup). The next
+phase starts with explicit TLS certificate checks, implemented locally and not
+yet released. The v0.5.x line provides discovery, process controls, installers,
+and updates. Sections distinguish implemented work from proposals; this is not a
+release promise.
 The owner wants SockLens to grow from local port inspection into service exposure
 and security analysis, eventually including explicitly selected remote hosts.
 
@@ -93,11 +96,23 @@ timeout and other errors retain their actual limits; no service health, remote
 process identity, authentication/TLS or vulnerability verdict is inferred.
 Existing local commands keep their meaning and do not start network probes.
 
-## Later: service and protocol security checks
+## Current phase: explicit TLS certificate checks
 
-Add explicit, limited protocol checks once target handling is reliable. TLS
-checks could inspect certificate expiry, hostname/chain validation, and negotiated
-protocol details. A single successful handshake does not enumerate every supported
+Implemented locally: `socklens tls --host HOST [--port PORT]`, with one-time DNS,
+numeric address pinning, per-address TCP/TLS deadlines, a total deadline,
+hostname/chain verification, validity dates, negotiated TLS version/cipher,
+SHA-256 evidence, expiry warnings, text/JSON output, and explicit private CA trust
+additions. Verification is never disabled. See docs/tls.md for scope and limits.
+
+Loopback tests cover valid TLS 1.2/1.3, certificate failures, warning semantics,
+connection cleanup, timeout/cancellation, and no application requests. Native
+publication checks remain required before release.
+
+## Later: broader service and protocol security checks
+
+Expand explicit, limited protocol checks incrementally. The initial TLS check
+inspects certificate expiry, hostname/chain validation, and negotiated protocol
+details. A single successful handshake does not enumerate every supported
 protocol or cipher; each finding must describe exactly what was tested.
 
 Service identification requires evidence beyond a port number. Future known-

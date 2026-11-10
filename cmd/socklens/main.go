@@ -70,7 +70,7 @@ func run() int {
 			}
 		}
 	}
-	if len(args) > 0 && (args[0] == "watch" || args[0] == "wait" || args[0] == "audit" || args[0] == "probe" || args[0] == "update") {
+	if len(args) > 0 && (args[0] == "watch" || args[0] == "wait" || args[0] == "audit" || args[0] == "probe" || args[0] == "tls" || args[0] == "update") {
 		var stop context.CancelFunc
 		ctx, stop = signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 		defer stop()

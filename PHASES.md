@@ -1,5 +1,24 @@
 # SockLens phase reports
 
+## Current phase: explicit TLS certificate checks (2026-11-10)
+
+Published baseline is v0.9.1. Added an unreleased tls command for one explicit
+host/port, hostname and chain verification, validity evidence, negotiated TLS
+details, expiry warnings, finding codes, and next steps. Private CA files add
+trust for this check only; verification is never disabled. Selected addresses
+are resolved once and numerically pinned. Per-address and total deadlines,
+cancellation, connection cleanup, text/JSON reports, and outcome exit codes are
+included. No application request, protocol enumeration, or CVE claim is made.
+
+Validation: make check, full race tests, Linux amd64 build, and Linux ARM64 /
+Windows amd64/ARM64 / macOS amd64/ARM64 vet, binary, and TLS-test compilation
+passed. Owned loopback fixtures exercise TLS 1.2/1.3, private trust, expiry,
+hostname mismatch, untrusted certificates, deadlines, cancellation, legacy TLS
+rejection, no application requests, DNS pinning/limits, and output escaping.
+Native remote CI and publication have not run for this phase.
+
+Earlier reports below retain their historical publication and platform status.
+
 Phase 6 supersedes the earlier final check-to-signal PID-reuse race limitation.
 
 ## Phase 1: core CLI and Linux backend

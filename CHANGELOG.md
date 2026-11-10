@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Explicit TLS certificate checks for one host/port, with bounded per-address and total deadlines, one-time DNS resolution, numeric pinning, and cancellation.
+- Hostname/chain verification, certificate validity and SHA-256 evidence, negotiated TLS details, expiry warnings, stable certificate finding codes, and remediation guidance.
+- Private CA additions for one check, escaped responsive text, versioned JSON, and dedicated outcome exit codes. No verification bypass, HTTP requests, protocol enumeration, or CVE verdicts.
+
 ## v0.9.1 — 2026-11-09
 
 - Plain watch now requires events and emits only changes after its baseline. Polling and polling fallback require explicit backend selection.

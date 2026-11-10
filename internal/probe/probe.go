@@ -71,6 +71,33 @@ type Engine struct {
 	Dial     func(context.Context, string, string) (net.Conn, error)
 }
 
+// ResolveAddresses resolves once, validates every selected numeric target, and
+// enforces the shared address limit before an active protocol check starts.
+func ResolveAddresses(ctx context.Context, host, family string, lookup func(context.Context, string) ([]net.IPAddr, error)) ([]netip.Addr, error) {
+	var err error
+	host, err = normalizeHost(host)
+	if err != nil {
+		return nil, err
+	}
+	if family != "any" && family != "ipv4" && family != "ipv6" {
+		return nil, fmt.Errorf("family must be any, ipv4, or ipv6")
+	}
+	if ip, err := netip.ParseAddr(host); err == nil && !familyMatches(ip, family) {
+		return nil, fmt.Errorf("host address does not match requested family")
+	}
+	if lookup == nil {
+		lookup = net.DefaultResolver.LookupIPAddr
+	}
+	addresses, err := resolve(ctx, host, family, lookup)
+	if err != nil {
+		return nil, err
+	}
+	if len(addresses) > MaxAddresses {
+		return nil, fmt.Errorf("host selected %d addresses; maximum is %d", len(addresses), MaxAddresses)
+	}
+	return addresses, nil
+}
+
 func (engine Engine) Run(parent context.Context, options Options) (Report, error) {
 	options, err := options.Normalize()
 	if err != nil {

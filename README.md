@@ -1,6 +1,6 @@
 # SockLens
 
-Inspect local TCP/UDP ports, review listener exposure, test TCP reachability to selected hosts and ports, see processes, monitor changes, and terminate a process with confirmation. Available for macOS, Windows, Linux, and WSL2.
+Inspect local TCP/UDP ports, review listener exposure, check explicit TCP/TLS endpoints, see processes, monitor changes, and terminate a process with confirmation. Available for macOS, Windows, Linux, and WSL2.
 
 ## Installation
 
@@ -153,6 +153,7 @@ also remains plain. Text layouts are intended for people; use --json for scripts
 | inspect | Inspect a local port |
 | audit | Explain local listener bindings and relevant firewall rule candidates |
 | probe | Test TCP reachability to one explicit host and selected ports |
+| tls | Check TLS certificates and negotiated connection details for one explicit host |
 | watch | Monitor sockets or changes |
 | wait | Wait for matching sockets to appear or disappear |
 | terminate | Preview or confirm process termination |
@@ -174,6 +175,7 @@ socklens list --help
 socklens inspect --help
 socklens audit --help
 socklens probe --help
+socklens tls --help
 socklens watch --help
 socklens wait --help
 socklens terminate --help
@@ -182,7 +184,7 @@ socklens update --help
 socklens updates --help
 ```
 
-These ten commands also accept -h.
+These commands also accept -h.
 
 ### version
 
@@ -556,6 +558,27 @@ Existing discovery/audit commands stay passive and probe schedules no update che
 See the [probe reference](https://github.com/Thuya-Myint/socklens/blob/main/docs/probe.md)
 for the JSON schema, limits, cancellation behavior, and interpretation examples.
 
+### tls
+
+Check a TLS certificate and negotiated connection details:
+
+```sh
+socklens tls --host example.com
+socklens tls --host 192.168.1.20 --port 8443 --server-name service.example.com
+socklens tls --host service.example.com --ca-file company-ca.pem --json
+```
+
+Checks every selected address with hostname and chain verification enabled,
+reports validity dates and SHA-256 fingerprints, and warns about expiry within
+30 days. System trust is used; --ca-file adds explicit private trust for this
+check only. No application request is sent. Defaults are port 443, a 3-second
+per-address connection/handshake limit, and a 15-second total deadline.
+
+TLS 1.2 or newer is required. One negotiated connection does not enumerate the
+server's supported protocols/ciphers or establish application health, revocation,
+or vulnerability status. See [docs/tls.md](docs/tls.md) for options, finding codes,
+JSON, exit codes, trust behavior, and scope.
+
 ### watch
 
 ```sh
@@ -744,7 +767,7 @@ Protected system PIDs, SockLens itself, and processes owned by another user are 
 
 list and inspect produce a JSON array. Each socket includes Protocol, Local, Remote, State, Inode, PIDs, and Processes. Each process entry includes PID and Name. Inode is a platform-specific identity value and may be empty.
 
-probe emits one TCP reachability report with schema_version, host, addresses, timing/limits, completion status, summary, optional error, results, and notes. watch emits newline-delimited records; wait emits one result on success. audit emits one report object with schema_version, timestamp, scope, external_reachability, summary, listeners, and notes. Since v0.7.0, audit adds an optional top-level firewall collection object and per-listener firewall context; --firewall=false omits them. These are additive schema version 1 fields. JSON strings escape control characters in process names. Existing discovery JSON schemas are unchanged.
+probe emits one TCP reachability report with schema_version, host, addresses, timing/limits, completion status, summary, optional error, results, and notes. tls emits one schema-versioned certificate/handshake report; see [docs/tls.md](docs/tls.md). watch emits newline-delimited records; wait emits one result on success. audit emits one report object with schema_version, timestamp, scope, external_reachability, summary, listeners, and notes. Since v0.7.0, audit adds an optional top-level firewall collection object and per-listener firewall context; --firewall=false omits them. These are additive schema version 1 fields. JSON strings escape control characters in process names. Existing discovery JSON schemas are unchanged.
 
 ## Exit codes
 
@@ -760,4 +783,4 @@ Stopping watch with Ctrl+C exits successfully.
 ## Planned development
 
 The audit implementation and later security-analysis direction are described in
-[ROADMAP.md](https://github.com/Thuya-Myint/socklens/blob/main/ROADMAP.md). Explicit TCP reachability checks are available in probe; protocol/vulnerability analysis remains planned work.
+[ROADMAP.md](https://github.com/Thuya-Myint/socklens/blob/main/ROADMAP.md). Explicit TCP reachability checks are available in probe, and TLS certificate checks in tls. Broader protocol/vulnerability analysis remains planned work.

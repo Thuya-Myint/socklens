@@ -51,7 +51,7 @@ func ParseColorArgs(args []string) ([]string, string, error) {
 }
 func takesValue(name string) bool {
 	switch strings.TrimLeft(name, "-") {
-	case "port", "pid", "protocol", "interval", "count", "until", "timeout", "peer", "firewall-timeout", "rule-limit", "host", "ports", "family", "connect-timeout", "concurrency":
+	case "port", "pid", "protocol", "interval", "count", "until", "timeout", "peer", "firewall-timeout", "rule-limit", "host", "ports", "family", "connect-timeout", "concurrency", "server-name", "handshake-timeout", "ca-file":
 		return true
 	}
 	return false
@@ -95,6 +95,20 @@ func newCommandFlags(command string, out io.Writer) *flag.FlagSet {
 		})
 		visible.PrintDefaults()
 		fmt.Fprintln(out, "  --color auto|always|never\n        terminal colors (default auto)")
+		if command == "tls" {
+			fmt.Fprintln(out, `
+TLS 1.2+ handshakes with hostname and chain verification enabled.
+One host is resolved once; selected numeric addresses are checked separately.
+No HTTP/application request, verification bypass, revocation, or CVE check.
+
+Examples:
+  socklens tls --host example.com
+  socklens tls --host 127.0.0.1 --port 8443 --server-name service.example.com
+  socklens tls --host service.example.com --ca-file company-ca.pem --json
+
+Exit: 0 verified without warnings; 1 input/DNS/output error;
+2 failed/incomplete checks or expiry warnings; 130 interrupted.`)
+		}
 		if command == "probe" {
 			fmt.Fprintln(out, `
 Explicit TCP connection checks. One host is resolved once; each selected numeric
