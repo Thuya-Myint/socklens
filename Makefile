@@ -22,7 +22,7 @@ test:
 
 check:
 	sh -n install.sh
-	@files="$$($(GOFMT) -l cmd internal tools)" && test -z "$$files"
+	@files="$($(GOFMT) -l cmd internal tools)"; if [ -n "$files" ]; then printf "Go files need formatting:\n%s\n" "$files"; exit 1; fi
 	$(GO) vet ./...
 
 install: build
