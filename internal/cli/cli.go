@@ -39,6 +39,7 @@ Connect:
 
 Monitor:
   watch          Watch socket changes using OS events
+  doctor         Diagnose platform capabilities and collection performance
   wait PORT      Wait for sockets to appear or disappear
 
 Manage:
@@ -111,6 +112,8 @@ func RunContext(ctx context.Context, args []string, in io.Reader, out, errOut io
 			return fail(errOut, err)
 		}
 		return 0
+	case "doctor":
+		return doctorCommand(ctx, args[1:], out, errOut)
 	case "check":
 		if len(args) != 1 {
 			return fail(errOut, fmt.Errorf("check takes no arguments"))
