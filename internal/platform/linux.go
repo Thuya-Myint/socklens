@@ -95,6 +95,10 @@ func List() ([]Socket, error) {
 		}
 		result = append(result, rows...)
 	}
+	wanted := make(map[string]struct{}, len(result))
+	for _, socket := range result {
+		wanted[socket.Inode] = struct{}{}
+	}
 	owners := map[string][]int{}
 	names := map[int]string{}
 	processes, err := os.ReadDir("/proc")
@@ -117,6 +121,9 @@ func List() ([]Socket, error) {
 				continue
 			}
 			inode := strings.TrimSuffix(strings.TrimPrefix(link, "socket:["), "]")
+			if _, wantedSocket := wanted[inode]; !wantedSocket {
+				continue
+			}
 			if !seen[inode] {
 				owners[inode] = append(owners[inode], pid)
 				seen[inode] = true
