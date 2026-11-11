@@ -274,3 +274,23 @@ func TestWatchArguments(t *testing.T) {
 		})
 	}
 }
+
+func TestWatchReconcilesMissedEvents(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	calls := 0
+	events := testSocketEvents{wait: func(ctx context.Context) error { <-ctx.Done(); return ctx.Err() }}
+	var out bytes.Buffer
+	opts := socketOptions{json: true, changes: true, reconcile: 10 * time.Millisecond}
+	err := watchSnapshotsWithEvents(ctx, &out, opts, time.Hour, 2, func() ([]platform.Socket, error) {
+		calls++
+		if calls == 1 { return nil, nil }
+		return []platform.Socket{{Protocol: "tcp", Local: "127.0.0.1:8080", State: "LISTEN"}}, nil
+	}, events)
+	if err != nil || calls != 2 { t.Fatalf("err=%v calls=%d", err, calls) }
+	var baseline, change changeSet
+	decoder := json.NewDecoder(&out)
+	if err := decoder.Decode(&baseline); err != nil { t.Fatal(err) }
+	if err := decoder.Decode(&change); err != nil { t.Fatal(err) }
+	if !baseline.Baseline || len(change.Added) != 1 { t.Fatalf("baseline=%+v change=%+v", baseline, change) }
+}
