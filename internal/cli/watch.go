@@ -31,6 +31,7 @@ func watchCommandWithSources(ctx context.Context, args []string, out, errOut io.
 	opts := addSocketFlags(fs)
 	fs.BoolVar(&opts.changes, "changes", true, "report only changes after an initial baseline")
 	interval := fs.Duration("interval", 2*time.Second, "polling delay (minimum 100ms; unused with events)")
+	reconcile := fs.Duration("reconcile", 20*time.Second, "maximum time between event-mode snapshots (minimum 1s)")
 	count := fs.Int("count", 0, "number of snapshots; 0 watches until interrupted")
 	backend := fs.String("backend", "events", "watch backend: events (default), auto, or poll")
 	if err := parseCommandFlags(fs, args, errOut); err != nil {
@@ -44,6 +45,9 @@ func watchCommandWithSources(ctx context.Context, args []string, out, errOut io.
 	}
 	if *interval < 100*time.Millisecond {
 		return fail(errOut, fmt.Errorf("interval must be at least 100ms"))
+	}
+	if *reconcile < time.Second {
+		return fail(errOut, fmt.Errorf("reconcile must be at least 1s"))
 	}
 	if *count < 0 {
 		return fail(errOut, fmt.Errorf("count must be zero or positive"))
@@ -76,6 +80,7 @@ func watchCommandWithSources(ctx context.Context, args []string, out, errOut io.
 			fmt.Fprintf(errOut, "watch: using %s socket events\n", runtime.GOOS)
 		}
 	}
+	opts.reconcile = *reconcile
 	if err := watchSnapshotsWithEvents(ctx, out, *opts, *interval, *count, list, events); err != nil {
 		return fail(errOut, err)
 	}
@@ -133,7 +138,18 @@ func watchSnapshotsWithEvents(ctx context.Context, out io.Writer, opts socketOpt
 			return nil
 		}
 		if events != nil {
-			if err := events.Wait(ctx); err != nil {
+			reconcile := opts.reconcile
+			if reconcile == 0 {
+				reconcile = 20 * time.Second
+			}
+			waitCtx, cancel := context.WithTimeout(ctx, reconcile)
+			err := events.Wait(waitCtx)
+			cancel()
+			if err != nil && errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
+				// A reconciliation snapshot recovers changes missed by the event source.
+				continue
+			}
+			if err != nil {
 				if ctx.Err() != nil {
 					return nil
 				}
