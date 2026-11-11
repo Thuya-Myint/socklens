@@ -30,6 +30,7 @@ func watchCommandWithSources(ctx context.Context, args []string, out, errOut io.
 	fs := newCommandFlags("watch", errOut)
 	opts := addSocketFlags(fs)
 	fs.BoolVar(&opts.changes, "changes", true, "report only changes after an initial baseline")
+	fs.BoolVar(&opts.stats, "stats", false, "print collection diagnostics to stderr when watch ends")
 	interval := fs.Duration("interval", 2*time.Second, "polling delay (minimum 100ms; unused with events)")
 	reconcile := fs.Duration("reconcile", 20*time.Second, "maximum time between event-mode snapshots (minimum 1s)")
 	count := fs.Int("count", 0, "number of snapshots; 0 watches until interrupted")
@@ -81,6 +82,21 @@ func watchCommandWithSources(ctx context.Context, args []string, out, errOut io.
 		}
 	}
 	opts.reconcile = *reconcile
+	if opts.stats {
+		var collections int
+		var total time.Duration
+		original := list
+		list = func() ([]platform.Socket, error) {
+			start := time.Now()
+			rows, err := original()
+			collections++
+			total += time.Since(start)
+			return rows, err
+		}
+		defer func() {
+			fmt.Fprintf(errOut, "watch diagnostics: backend=%s collections=%d collection_total=%s reconcile=%s\\n", *backend, collections, total, opts.reconcile)
+		}()
+	}
 	if err := watchSnapshotsWithEvents(ctx, out, *opts, *interval, *count, list, events); err != nil {
 		return fail(errOut, err)
 	}
