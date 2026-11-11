@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Thuya-Myint/socklens/internal/terminal"
 
@@ -158,6 +159,7 @@ func fail(w io.Writer, err error) int {
 
 type socketOptions struct {
 	changes bool // watch only
+	reconcile time.Duration // watch event-mode reconciliation interval
 	filter  socketFilter
 	json    bool
 }
