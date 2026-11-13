@@ -57,6 +57,10 @@ func watchCommandWithSources(ctx context.Context, args []string, out, errOut io.
 		return fail(errOut, fmt.Errorf("backend must be auto, events, or poll"))
 	}
 	var events platform.SocketEvents
+	selectedBackend := "snapshot"
+	if *count != 1 {
+		selectedBackend = "poll"
+	}
 	if *backend != "poll" && *count != 1 && ctx.Err() == nil {
 		var err error
 		events, err = subscribe(ctx)
@@ -78,6 +82,7 @@ func watchCommandWithSources(ctx context.Context, args []string, out, errOut io.
 			}
 			fmt.Fprintln(errOut, "watch: using polling:", err)
 		} else {
+			selectedBackend = "events"
 			fmt.Fprintf(errOut, "watch: using %s socket events\n", runtime.GOOS)
 		}
 	}
@@ -94,7 +99,7 @@ func watchCommandWithSources(ctx context.Context, args []string, out, errOut io.
 			return rows, err
 		}
 		defer func() {
-			fmt.Fprintf(errOut, "watch diagnostics: backend=%s collections=%d collection_total=%s reconcile=%s\\n", *backend, collections, total, opts.reconcile)
+			fmt.Fprintf(errOut, "watch diagnostics: backend=%s collections=%d collection_total=%s reconcile=%s\n", selectedBackend, collections, total, opts.reconcile)
 		}()
 	}
 	if err := watchSnapshotsWithEvents(ctx, out, *opts, *interval, *count, list, events); err != nil {

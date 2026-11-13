@@ -1,0 +1,25 @@
+name: Install pinned Cosign
+description: Bootstrap an independently checksum-pinned Sigstore verifier
+runs:
+  using: composite
+  steps:
+    - if: runner.os != 'Windows'
+      uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532
+      with:
+        cosign-release: v3.1.4
+    - if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        # The amd64 build also runs under Windows ARM64 emulation.
+        $directory = Join-Path $env:RUNNER_TEMP 'socklens-cosign'
+        New-Item -ItemType Directory -Force -Path $directory | Out-Null
+        $binary = Join-Path $directory 'cosign.exe'
+        Invoke-WebRequest 'https://github.com/sigstore/cosign/releases/download/v3.1.4/cosign-windows-amd64.exe' -OutFile $binary
+        if ((Get-FileHash $binary -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'cbe953787074611f1334cbf37dc1cf953995bb8c45398eb4fc7bb781d29c1f2a') { throw 'Cosign bootstrap checksum mismatch' }
+        $directory >> $env:GITHUB_PATH
+    - if: runner.os == 'Windows'
+      shell: pwsh
+      run: '"SOCKLENS_COSIGN=$((Get-Command cosign).Source)" >> $env:GITHUB_ENV'
+    - if: runner.os != 'Windows'
+      shell: bash
+      run: echo "SOCKLENS_COSIGN=$(command -v cosign)" >> "$GITHUB_ENV"

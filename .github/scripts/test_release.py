@@ -7,6 +7,8 @@ from unittest import mock
 
 import release as flow
 
+VERIFY_SIGNATURE = flow.verify_signature
+
 REPO = "Thuya-Myint/socklens"
 VERSION = "v0.4.0"
 COMMIT = "a" * 40
@@ -20,6 +22,10 @@ class ReleaseTests(unittest.TestCase):
         self.assets = self.root / "assets"
         self.assets.mkdir()
         self.make_assets()
+        (self.assets / flow.BUNDLE).write_text('fixture signature bundle')
+        verifier = mock.patch.object(flow, "verify_signature")
+        self.verify_signature = verifier.start()
+        self.addCleanup(verifier.stop)
 
     def make_assets(self):
         for target in flow.TARGETS:
@@ -42,7 +48,7 @@ class ReleaseTests(unittest.TestCase):
     def refresh_checksums(self):
         lines = []
         for path in sorted(self.assets.iterdir()):
-            if path.name != "SHA256SUMS":
+            if path.name not in ("SHA256SUMS", flow.BUNDLE):
                 lines.append(hashlib.sha256(path.read_bytes()).hexdigest() + "  " + path.name)
         (self.assets / "SHA256SUMS").write_text("\n".join(lines) + "\n")
 
@@ -57,7 +63,7 @@ class ReleaseTests(unittest.TestCase):
                 flow.version_key(value)
 
     def test_valid_metadata_and_remote_digests(self):
-        self.assertEqual(len(flow.artifact_hashes(self.assets, VERSION, REPO)), 9)
+        self.assertEqual(len(flow.artifact_hashes(self.assets, VERSION, REPO)), 10)
         info = self.info()
         flow.verify_remote(info, self.assets, VERSION, REPO)
         info["assets"][0]["digest"] = "sha256:" + "0" * 64
@@ -68,6 +74,20 @@ class ReleaseTests(unittest.TestCase):
         (self.assets / flow.archive_name(VERSION, "darwin_arm64")).write_bytes(b"changed")
         with self.assertRaises(ValueError):
             flow.artifact_hashes(self.assets, VERSION, REPO)
+
+    def test_invalid_signature_is_rejected_before_hashes(self):
+        self.verify_signature.side_effect = RuntimeError("invalid signature")
+        with self.assertRaisesRegex(RuntimeError, "invalid signature"):
+            flow.artifact_hashes(self.assets, VERSION, REPO)
+
+    def test_signature_is_bound_to_exact_workflow_tag_and_issuer(self):
+        with mock.patch.object(flow, "command") as command:
+            VERIFY_SIGNATURE(self.assets, VERSION, REPO)
+            identity = "https://github.com/" + REPO + "/.github/workflows/release.yml@refs/tags/" + VERSION
+            command.assert_called_once_with("cosign", "verify-blob", "--bundle", str(self.assets / flow.BUNDLE),
+                                            "--certificate-identity", identity,
+                                            "--certificate-oidc-issuer", "https://token.actions.githubusercontent.com",
+                                            str(self.assets / "SHA256SUMS"))
 
     def test_duplicate_or_unexpected_checksum_fails(self):
         path = self.assets / "SHA256SUMS"

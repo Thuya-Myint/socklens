@@ -10,6 +10,9 @@ function global:Invoke-WebRequest {
     $name = [System.IO.Path]::GetFileName(([Uri]$Uri).AbsolutePath)
     Copy-Item -LiteralPath (Join-Path $global:SockLensFixtureDownloads $name) -Destination $OutFile
 }
+function global:cosign {
+    $global:LASTEXITCODE = if ($env:SOCKLENS_TEST_SIGNATURE_FAIL -eq '1') { 1 } else { 0 }
+}
 try {
     $folderName = "socklens_v0.2.0_windows_amd64"
     $folder = Join-Path $testRoot $folderName
@@ -20,6 +23,7 @@ try {
     Compress-Archive -LiteralPath $folder -DestinationPath $archive
     $hash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
     Set-Content -LiteralPath (Join-Path $global:SockLensFixtureDownloads "SHA256SUMS") -Value "$hash  $folderName.zip" -Encoding ascii
+    Set-Content -LiteralPath (Join-Path $global:SockLensFixtureDownloads "SHA256SUMS.sigstore.json") -Value 'fixture signature' -Encoding ascii
     $installDir = Join-Path $testRoot "installed"
     $taskOriginalPath = $env:Path
     try {
@@ -29,6 +33,15 @@ try {
     $installed = Join-Path $installDir "socklens.exe"
     if ([Convert]::ToBase64String([System.IO.File]::ReadAllBytes($installed)) -ne [Convert]::ToBase64String($fixture)) { throw "Installed bytes differ." }
     Write-Output "PASS: Windows installation without Go, compiler, external programs, or PATH changes"
+    $env:SOCKLENS_TEST_SIGNATURE_FAIL = '1'
+    $failed = $false
+    try {
+        & (Join-Path $project 'install.ps1') -Version v0.2.0 -Architecture amd64 -InstallDir $installDir -NoPathUpdate
+    } catch {
+        if ($_.ToString() -notmatch 'signature verification failed') { throw }
+        $failed = $true
+    } finally { Remove-Item Env:\SOCKLENS_TEST_SIGNATURE_FAIL }
+    if (-not $failed -or [Convert]::ToBase64String([System.IO.File]::ReadAllBytes($installed)) -ne [Convert]::ToBase64String($fixture)) { throw 'Invalid signature did not preserve installation.' }
     [System.IO.File]::WriteAllBytes($archive, [byte[]](0,1,2))
     $failed = $false
     try {
@@ -45,5 +58,6 @@ try {
     $resolved = [System.IO.Path]::GetFullPath($testRoot)
     if ($resolved.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) { Remove-Item -LiteralPath $resolved -Recurse -Force }
     Remove-Item Function:\Invoke-WebRequest -ErrorAction SilentlyContinue
+    Remove-Item Function:\cosign -ErrorAction SilentlyContinue
     Remove-Variable SockLensFixtureDownloads -Scope Global -ErrorAction SilentlyContinue
 }

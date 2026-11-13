@@ -16,6 +16,10 @@ import (
 
 // doctor reports capabilities without invoking privileged tracing setup.
 func doctorCommand(ctx context.Context, args []string, out, errOut io.Writer) int {
+	return doctorCommandWithSource(ctx, args, out, errOut, platform.List)
+}
+
+func doctorCommandWithSource(ctx context.Context, args []string, out, errOut io.Writer, list func() ([]platform.Socket, error)) int {
 	fs := newCommandFlags("doctor", errOut)
 	asJSON := fs.Bool("json", false, "output machine-readable capability report")
 	if err := parseCommandFlags(fs, args, errOut); err != nil {
@@ -38,7 +42,10 @@ func doctorCommand(ctx context.Context, args []string, out, errOut io.Writer) in
 		Notes           []string `json:"notes"`
 	}{OS: runtime.GOOS, Arch: runtime.GOARCH, EventStatus: "requires runtime verification", Notes: []string{}}
 	started := time.Now()
-	rows, err := platform.List()
+	if ctx.Err() != nil {
+		return 0
+	}
+	rows, err := list()
 	report.CollectionMS = float64(time.Since(started).Microseconds()) / 1000
 	if err != nil {
 		report.SocketDiscovery = err.Error()
@@ -74,7 +81,9 @@ func doctorCommand(ctx context.Context, args []string, out, errOut io.Writer) in
 			return fail(errOut, e)
 		}
 	} else {
-		fmt.Fprintf(out, "SockLens doctor (%s/%s)\nSocket discovery: %s\nSockets: %d\nCollection: %.2f ms\nEvent backend: %s\nEvent status: %s\n", report.OS, report.Arch, report.SocketDiscovery, report.SocketCount, report.CollectionMS, report.EventBackend, report.EventStatus)
+		if _, e := fmt.Fprintf(out, "SockLens doctor (%s/%s)\nSocket discovery: %s\nSockets: %d\nCollection: %.2f ms\nEvent backend: %s\nEvent status: %s\n", report.OS, report.Arch, report.SocketDiscovery, report.SocketCount, report.CollectionMS, report.EventBackend, report.EventStatus); e != nil {
+			return fail(errOut, e)
+		}
 	}
 	if err != nil {
 		return 1

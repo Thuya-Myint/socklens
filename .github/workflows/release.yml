@@ -39,6 +39,7 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
+          test "$GITHUB_REF" = "refs/tags/$VERSION"
           git fetch origin main
           sha=$(git rev-parse "refs/tags/$VERSION^{commit}")
           test "$(git rev-parse HEAD)" = "$sha"
@@ -60,6 +61,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
     env:
       VERSION: ${{ needs.resolve.outputs.version }}
       SOURCE_COMMIT: ${{ needs.resolve.outputs.sha }}
@@ -69,6 +71,7 @@ jobs:
           ref: ${{ needs.resolve.outputs.sha }}
           fetch-depth: 0
           persist-credentials: false
+      - uses: ./.github/actions/cosign
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: stable
@@ -79,6 +82,19 @@ jobs:
         run: |
           cd "dist/$VERSION"
           sha256sum -c SHA256SUMS
+      - name: Sign manifest using the exact release workflow tag identity
+        run: cosign sign-blob --yes --bundle "dist/$VERSION/SHA256SUMS.sigstore.json" "dist/$VERSION/SHA256SUMS"
+      - name: Verify signature and reject tampered manifest and wrong identity
+        run: |
+          identity="https://github.com/Thuya-Myint/socklens/.github/workflows/release.yml@refs/tags/$VERSION"
+          issuer=https://token.actions.githubusercontent.com
+          bundle="dist/$VERSION/SHA256SUMS.sigstore.json"
+          manifest="dist/$VERSION/SHA256SUMS"
+          cosign verify-blob --bundle "$bundle" --certificate-identity "$identity" --certificate-oidc-issuer "$issuer" "$manifest"
+          cp "$manifest" "$RUNNER_TEMP/tampered-manifest"
+          printf 'tampered\n' >> "$RUNNER_TEMP/tampered-manifest"
+          if cosign verify-blob --bundle "$bundle" --certificate-identity "$identity" --certificate-oidc-issuer "$issuer" "$RUNNER_TEMP/tampered-manifest"; then exit 1; fi
+          if cosign verify-blob --bundle "$bundle" --certificate-identity "$identity-wrong" --certificate-oidc-issuer "$issuer" "$manifest"; then exit 1; fi
       - name: Publish verified release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -101,6 +117,7 @@ jobs:
           ref: ${{ needs.resolve.outputs.sha }}
           persist-credentials: false
       - uses: Homebrew/actions/setup-homebrew@d482da0e602890d3160aade42e72c8556103bf04
+      - uses: ./.github/actions/cosign
       - name: Download and verify published files
         env:
           GH_TOKEN: ${{ github.token }}
@@ -135,6 +152,7 @@ jobs:
         with:
           ref: ${{ needs.resolve.outputs.sha }}
           persist-credentials: false
+      - uses: ./.github/actions/cosign
       - name: Download verified release and stage installer versions
         shell: bash
         env:
@@ -180,6 +198,7 @@ jobs:
         with:
           ref: ${{ needs.resolve.outputs.sha }}
           fetch-depth: 0
+      - uses: ./.github/actions/cosign
       - name: Download verified published installer metadata
         env:
           GH_TOKEN: ${{ github.token }}

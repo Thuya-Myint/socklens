@@ -83,6 +83,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref || github.sha }}
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+          cache: false
       - uses: Homebrew/actions/setup-homebrew@d482da0e602890d3160aade42e72c8556103bf04
       - name: Install the prebuilt binary through Homebrew
         run: |
@@ -91,9 +95,9 @@ jobs:
           brew test socklens/ci/socklens
           test -z "$(brew deps --include-build socklens/ci/socklens)"
       - name: Install the binary without Go on PATH
-        run: |
-          env PATH=/usr/bin:/bin SOCKLENS_INSTALL_DIR="$RUNNER_TEMP/socklens-no-go" sh ./install.sh
-          "$RUNNER_TEMP/socklens-no-go/socklens" version
+        # Fixture PATH contains only prerequisites, including a controlled
+        # verifier. Real signatures are checked by the release workflow.
+        run: go test -v ./tools/install
 
   native:
     strategy:

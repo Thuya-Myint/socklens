@@ -11,6 +11,9 @@ if (-not $Version) {
     $Version = $release.tag_name
 }
 if ($Version -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$') { throw "Invalid release version." }
+$cosignName = if ($env:SOCKLENS_COSIGN) { $env:SOCKLENS_COSIGN } else { 'cosign' }
+$cosign = Get-Command $cosignName -ErrorAction SilentlyContinue
+if (-not $cosign) { throw "Install Sigstore cosign independently to verify releases." }
 if ($Architecture -eq "auto") {
     $nativeArchitecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
     switch ($nativeArchitecture) {
@@ -43,6 +46,10 @@ try {
     $base = "https://github.com/Thuya-Myint/socklens/releases/download/$Version"
     Invoke-WebRequest -UseBasicParsing -Uri "$base/$archiveName" -OutFile $archivePath
     Invoke-WebRequest -UseBasicParsing -Uri "$base/SHA256SUMS" -OutFile $manifestPath
+    $bundlePath = Join-Path $work 'SHA256SUMS.sigstore.json'
+    Invoke-WebRequest -UseBasicParsing -Uri "$base/SHA256SUMS.sigstore.json" -OutFile $bundlePath
+    & $cosign verify-blob --bundle $bundlePath --certificate-identity "https://github.com/Thuya-Myint/socklens/.github/workflows/release.yml@refs/tags/$Version" --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' $manifestPath
+    if ($LASTEXITCODE -ne 0) { throw 'Release signature verification failed; nothing installed.' }
     $pattern = '^([0-9a-fA-F]{64})\s+' + [regex]::Escape($archiveName) + '$'
     $checksums = @()
     foreach ($line in Get-Content -LiteralPath $manifestPath) {

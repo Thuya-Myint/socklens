@@ -260,6 +260,8 @@ func TestWatchArguments(t *testing.T) {
 		{[]string{"watch", "--interval", "-1s"}, 1, "at least 100ms"},
 		{[]string{"watch", "--interval", "99ms"}, 1, "at least 100ms"},
 		{[]string{"watch", "--count", "-1"}, 1, "zero or positive"},
+		{[]string{"watch", "--reconcile", "bad"}, 1, "invalid value"},
+		{[]string{"watch", "--reconcile", "999ms"}, 1, "at least 1s"},
 		{[]string{"watch", "--port", "0"}, 1, "port must"},
 		{[]string{"watch", "--pid", "-1"}, 1, "PID must"},
 		{[]string{"watch", "--protocol", "icmp"}, 1, "protocol must"},
@@ -305,5 +307,50 @@ func TestWatchReconcilesMissedEvents(t *testing.T) {
 	}
 	if !baseline.Baseline || len(change.Added) != 1 {
 		t.Fatalf("baseline=%+v change=%+v", baseline, change)
+	}
+}
+
+func TestWatchStatsSelectedBackend(t *testing.T) {
+	for _, tc := range []struct {
+		backend, count, want string
+		subscribeErr         error
+	}{
+		{"auto", "2", "events", nil},
+		{"auto", "2", "poll", errors.New("unavailable")},
+		{"events", "1", "snapshot", nil},
+		{"poll", "1", "snapshot", nil},
+	} {
+		var out, stderr bytes.Buffer
+		code := watchCommandWithSources(context.Background(), []string{"--stats", "--json", "--backend", tc.backend, "--count", tc.count, "--interval", "100ms"}, &out, &stderr,
+			func(context.Context) (platform.SocketEvents, error) {
+				if tc.subscribeErr != nil {
+					return nil, tc.subscribeErr
+				}
+				return testSocketEvents{wait: func(context.Context) error { return nil }}, nil
+			}, func() ([]platform.Socket, error) { return nil, nil })
+		if code != 0 || !strings.Contains(stderr.String(), "backend="+tc.want+" collections="+tc.count) || !strings.HasSuffix(stderr.String(), "\n") || strings.Contains(stderr.String(), `\n`) {
+			t.Fatalf("code=%d stderr=%s", code, &stderr)
+		}
+	}
+}
+
+func TestWatchReconcilesRepeatedlyBetweenEvents(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	waits, calls := 0, 0
+	events := testSocketEvents{wait: func(ctx context.Context) error {
+		waits++
+		if waits == 2 {
+			return nil
+		}
+		<-ctx.Done()
+		return ctx.Err()
+	}}
+	err := watchSnapshotsWithEvents(ctx, io.Discard, socketOptions{json: true, reconcile: time.Millisecond}, time.Hour, 4, func() ([]platform.Socket, error) {
+		calls++
+		return nil, nil
+	}, events)
+	if err != nil || ctx.Err() != nil || calls != 4 || waits != 3 {
+		t.Fatalf("err=%v calls=%d waits=%d", err, calls, waits)
 	}
 }

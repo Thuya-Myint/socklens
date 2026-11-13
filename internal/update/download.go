@@ -284,6 +284,18 @@ func (u Updater) installStandalone(ctx context.Context, plan Plan) (InstallResul
 	if err := u.download(ctx, manifestURL, &manifest, 64<<10); err != nil {
 		return InstallResult{}, err
 	}
+	bundleURL, err := u.assetURL(plan.Result.Latest, "SHA256SUMS.sigstore.json")
+	if err != nil {
+		return InstallResult{}, err
+	}
+	var bundle boundedBuffer
+	bundle.limit = 1 << 20
+	if err := u.download(ctx, bundleURL, &bundle, 1<<20); err != nil {
+		return InstallResult{}, fmt.Errorf("signed release bundle required: %w", err)
+	}
+	if err := u.verifyReleaseManifest(ctx, plan.Result.Latest, work, manifest.Bytes(), bundle.Bytes()); err != nil {
+		return InstallResult{}, err
+	}
 	expected, err := checksumFor(manifest.Bytes(), name)
 	if err != nil {
 		return InstallResult{}, err

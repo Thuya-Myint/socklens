@@ -131,6 +131,8 @@ func installerFixture(t *testing.T, target string, body []byte, arch string, run
 			fmt.Fprint(w, `{"tag_name":"v0.5.0"}`)
 		case "/v0.5.0/SHA256SUMS":
 			fmt.Fprint(w, manifest)
+		case "/v0.5.0/SHA256SUMS.sigstore.json":
+			fmt.Fprint(w, "signature fixture")
 		case "/v0.5.0/" + name:
 			if onArchive != nil {
 				onArchive()
@@ -141,10 +143,18 @@ func installerFixture(t *testing.T, target string, body []byte, arch string, run
 		}
 	}))
 	t.Cleanup(server.Close)
-	return Updater{Checker: Checker{Endpoint: server.URL + "/latest", Client: server.Client()}, Client: server.Client(), AssetBaseURL: server.URL, Executable: target, Arch: arch, Runner: runner, foreground: true}
+	return Updater{Checker: Checker{Endpoint: server.URL + "/latest", Client: server.Client()}, Client: server.Client(), AssetBaseURL: server.URL, Executable: target, Arch: arch, Runner: runner, Lookup: func(name string) (string, error) {
+		if name == "cosign" {
+			return "fixture-cosign", nil
+		}
+		return "", fmt.Errorf("not installed")
+	}, foreground: true}
 }
 func fakeBinaryRunner(target string, image []byte) *installRunner {
 	return &installRunner{output: func(c Command) ([]byte, error) {
+		if c.Program == "fixture-cosign" {
+			return []byte("Verified OK"), nil
+		}
 		data, err := os.ReadFile(c.Program)
 		if err != nil {
 			return nil, err
@@ -194,6 +204,9 @@ func TestStandaloneFailurePreservesOriginal(t *testing.T) {
 			originalOutput := runner.output
 			if kind == "version" || kind == "rollback" {
 				runner.output = func(c Command) ([]byte, error) {
+					if c.Program == "fixture-cosign" {
+						return originalOutput(c)
+					}
 					data, err := os.ReadFile(c.Program)
 					if err != nil {
 						return nil, err
