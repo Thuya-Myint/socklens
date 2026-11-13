@@ -116,7 +116,7 @@ jobs:
         with:
           ref: ${{ needs.resolve.outputs.sha }}
           persist-credentials: false
-      - uses: Homebrew/actions/setup-homebrew@d482da0e602890d3160aade42e72c8556103bf04
+      - uses: Homebrew/actions/setup-homebrew@63a2d4d8d4193eab3e62b1b782ff3ab8408f5b29
       - uses: ./.github/actions/cosign
       - name: Download and verify published files
         env:
