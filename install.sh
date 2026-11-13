@@ -4,7 +4,7 @@ set -eu
 
 fail() { printf '%s\n' "socklens installer: $*" >&2; exit 1; }
 
-version=${SOCKLENS_VERSION:-v0.10.0}
+version=${SOCKLENS_VERSION:-v0.11.0}
 case "$version" in v[0-9]*) ;; *) fail "invalid version: $version" ;; esac
 case "$version" in *[!A-Za-z0-9._+-]*) fail "invalid version: $version" ;; esac
 case "$(uname -s)" in
@@ -22,6 +22,8 @@ esac
 for tool in curl tar gzip mktemp chmod mv mkdir cat rm; do
   command -v "$tool" >/dev/null 2>&1 || fail "required tool not found: $tool"
 done
+cosign=${SOCKLENS_COSIGN:-cosign}
+command -v "$cosign" >/dev/null 2>&1 || fail "install Sigstore cosign independently to verify releases"
 if command -v sha256sum >/dev/null 2>&1; then
   hash_tool=sha256sum
 elif command -v shasum >/dev/null 2>&1; then
@@ -49,6 +51,11 @@ folder="socklens_${version}_${system}_${arch}"
 base="https://github.com/Thuya-Myint/socklens/releases/download/$version"
 curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' "$base/$archive" -o "$work/$archive"
 curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' "$base/SHA256SUMS" -o "$work/SHA256SUMS"
+curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' "$base/SHA256SUMS.sigstore.json" -o "$work/SHA256SUMS.sigstore.json"
+"$cosign" verify-blob --bundle "$work/SHA256SUMS.sigstore.json" \
+  --certificate-identity "https://github.com/Thuya-Myint/socklens/.github/workflows/release.yml@refs/tags/$version" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  "$work/SHA256SUMS" || fail "release signature verification failed; nothing installed"
 
 expected=
 while read -r digest name extra; do

@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Thuya-Myint/socklens/internal/terminal"
 
@@ -38,6 +39,7 @@ Connect:
 
 Monitor:
   watch          Watch socket changes using OS events
+  doctor         Diagnose platform capabilities and collection performance
   wait PORT      Wait for sockets to appear or disappear
 
 Manage:
@@ -110,6 +112,8 @@ func RunContext(ctx context.Context, args []string, in io.Reader, out, errOut io
 			return fail(errOut, err)
 		}
 		return 0
+	case "doctor":
+		return doctorCommand(ctx, args[1:], out, errOut)
 	case "check":
 		if len(args) != 1 {
 			return fail(errOut, fmt.Errorf("check takes no arguments"))
@@ -157,9 +161,11 @@ func fail(w io.Writer, err error) int {
 }
 
 type socketOptions struct {
-	changes bool // watch only
-	filter  socketFilter
-	json    bool
+	changes   bool          // watch only
+	reconcile time.Duration // watch event-mode reconciliation interval
+	stats     bool          // print monitoring diagnostics to stderr
+	filter    socketFilter
+	json      bool
 }
 
 func addSocketFlags(fs *flag.FlagSet) *socketOptions {

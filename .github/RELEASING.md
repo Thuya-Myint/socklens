@@ -9,7 +9,8 @@ The Publish release and installers workflow:
 1. Resolves the tag to an immutable main-branch commit and validates release notes.
 2. Calls the full CI workflow: supported Go versions, race/security tests, native
    Windows/macOS/Linux tests, current installer tests, packaging and checksums.
-3. Builds versioned binaries, uploads a draft, verifies every uploaded digest, and
+3. Builds versioned binaries, signs SHA256SUMS with Sigstore, verifies the exact
+   workflow/tag identity and issuer, uploads the bundle and draft, verifies every digest, and
    publishes the stable release. Older maintenance releases do not replace Latest.
 4. Tests the new public Homebrew formula on Linux and both Mac architectures, and
    standalone installers on x64/ARM64 Windows and Linux without Go on PATH.
@@ -23,7 +24,10 @@ commits made with GITHUB_TOKEN; the exact installer files are smoke-tested befor
 promotion, and this avoids a release/CI loop.
 
 To recover a transient failure, rerun failed jobs or manually dispatch the release
-workflow with the existing version tag. Published assets are never overwritten;
+workflow with the existing version tag as both workflow ref and version input
+(for example, gh workflow run release.yml --ref v0.11.0 -f version=v0.11.0).
+Dispatching from main is refused to preserve the tag signing identity.
+Published assets are never overwritten;
 a rerun downloads and verifies them. Draft uploads can be resumed. A failed test
 blocks its dependent publishing/promotion step. All new source tests must pass
 before the public release is created; install smoke tests must pass before the

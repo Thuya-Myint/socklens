@@ -39,12 +39,12 @@ export PATH="$HOME/.local/bin:$PATH"
 socklens version
 ```
 
-The installer detects your CPU, verifies the download checksum, and installs into ~/.local/bin without sudo. Run the commands inside WSL2 if you use this method on Windows.
+Install Sigstore [Cosign](https://docs.sigstore.dev/cosign/system_config/installation/) independently first. Standalone installers authenticate the signed checksum manifest against this repository's exact release workflow tag and GitHub Actions issuer before installation. They detect your CPU and install into ~/.local/bin without sudo on Linux/macOS. Run the shell installer inside WSL2 on Windows. Set SOCKLENS_COSIGN to a trusted Cosign executable's absolute path if it is outside PATH. Unsigned older releases are refused.
 
 To choose another installation directory or published version:
 
 ```sh
-SOCKLENS_INSTALL_DIR="$HOME/bin" SOCKLENS_VERSION=v0.10.0 sh /tmp/socklens-install.sh
+SOCKLENS_INSTALL_DIR="$HOME/bin" SOCKLENS_VERSION=v0.11.0 sh /tmp/socklens-install.sh
 ```
 
 The installer does not change shell startup files. Add your installation directory to PATH if you want to run socklens from any terminal.
@@ -259,7 +259,9 @@ Use --status alone. --dry-run can be combined with --timeout.
   described above. If a release is newer than the bucket, the command asks you to
   retry after the installer has been published.
 - **Standalone binaries:** downloads the matching macOS, Windows, or Linux
-  amd64/arm64 release over HTTPS, checks SHA-256, architecture, and version, then
+  amd64/arm64 release over HTTPS, requires independently installed Cosign on PATH
+  to authenticate the signed manifest against the exact release workflow tag and
+  GitHub Actions issuer, checks SHA-256, architecture, and version, then
   replaces the executable. A failed post-install check attempts to restore the
   previous executable. The install directory must be writable.
 
@@ -278,9 +280,12 @@ updating if Windows reports that the executable is in use.
 
 No administrator prompt, sudo, shell-profile change, or automatic installation
 is added. Package-manager policies and normal file permissions still apply.
-Unknown package-manager locations are refused rather than overwritten. Checksums
-come from the same GitHub release as the archive; they detect download corruption
-but are not a separate publisher signature.
+Unknown package-manager locations are refused rather than overwritten. Standalone
+updates fail before downloading or executing a candidate if the signature bundle
+or trusted Cosign verifier is missing or verification fails. Homebrew and Scoop
+retain their package-manager metadata trust policies. Older SockLens versions do
+not gain verification until upgraded; use the signed standalone installer for
+the first migration from an unsigned version.
 
 An interrupted standalone update can leave a reported .update-lock directory.
 Before removing that empty lock and retrying, confirm no updater is still running.

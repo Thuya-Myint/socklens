@@ -59,7 +59,8 @@ while [ "$#" -gt 0 ]; do
 done
 exec "$TEST_CP" "$TEST_DOWNLOADS/${url##*/}" "$destination"
 `
-	for name, body := range map[string]string{"uname": uname, "curl": curl} {
+	cosign := "#!/bin/sh\nexit ${TEST_SIGNATURE_EXIT:-0}\n"
+	for name, body := range map[string]string{"uname": uname, "curl": curl, "cosign": cosign} {
 		if err := os.WriteFile(filepath.Join(f.tools, name), []byte(body), 0755); err != nil {
 			t.Fatal(err)
 		}
@@ -89,6 +90,9 @@ exec "$TEST_CP" "$TEST_DOWNLOADS/${url##*/}" "$destination"
 	}
 	sum := sha256.Sum256(data)
 	if err := os.WriteFile(filepath.Join(f.downloads, "SHA256SUMS"), []byte(fmt.Sprintf("%x  %s\n", sum, name)), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(f.downloads, "SHA256SUMS.sigstore.json"), []byte("fixture signature"), 0644); err != nil {
 		t.Fatal(err)
 	}
 	for _, entry := range os.Environ() {
@@ -142,6 +146,19 @@ func TestBadChecksumPreservesExistingInstall(t *testing.T) {
 	out, err := f.run()
 	data, _ := os.ReadFile(target)
 	if err == nil || !strings.Contains(out, "checksum mismatch") || string(data) != "keep existing" {
+		t.Fatalf("%v %s", err, out)
+	}
+}
+
+func TestInvalidSignaturePreservesExistingInstall(t *testing.T) {
+	f := newFixture(t)
+	target := filepath.Join(f.destination, "socklens")
+	if err := os.WriteFile(target, []byte("keep existing"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	out, err := f.run("TEST_SIGNATURE_EXIT=1")
+	data, _ := os.ReadFile(target)
+	if err == nil || !strings.Contains(out, "signature verification failed") || string(data) != "keep existing" {
 		t.Fatalf("%v %s", err, out)
 	}
 }

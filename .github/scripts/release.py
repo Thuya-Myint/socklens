@@ -12,6 +12,15 @@ import time
 
 VERSION = re.compile(r"v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\Z")
 TARGETS = ("linux_amd64", "linux_arm64", "darwin_amd64", "darwin_arm64", "windows_amd64", "windows_arm64")
+BUNDLE = "SHA256SUMS.sigstore.json"
+
+
+def verify_signature(directory, version, repo):
+    identity = "https://github.com/" + repo + "/.github/workflows/release.yml@refs/tags/" + version
+    command("cosign", "verify-blob", "--bundle", str(Path(directory) / BUNDLE),
+            "--certificate-identity", identity,
+            "--certificate-oidc-issuer", "https://token.actions.githubusercontent.com",
+            str(Path(directory) / "SHA256SUMS"))
 
 
 def version_key(value):
@@ -68,6 +77,7 @@ def archive_name(version, target):
 def artifact_hashes(directory, version, repo):
     version_key(version)
     directory = Path(directory)
+    verify_signature(directory, version, repo)
     archives = {archive_name(version, target) for target in TARGETS}
     expected = archives | {"socklens.rb", "socklens.json"}
     sums = {}
@@ -78,7 +88,7 @@ def artifact_hashes(directory, version, repo):
         sums[fields[1]] = fields[0]
     if set(sums) != expected:
         raise ValueError("unexpected or missing release checksum entries")
-    if {path.name for path in directory.iterdir()} != expected | {"SHA256SUMS"}:
+    if {path.name for path in directory.iterdir()} != expected | {"SHA256SUMS", BUNDLE}:
         raise ValueError("unexpected or missing release files")
     for name, digest in sums.items():
         path = directory / name
@@ -88,6 +98,10 @@ def artifact_hashes(directory, version, repo):
     if manifest.is_symlink() or not manifest.is_file():
         raise ValueError("invalid release manifest")
     sums["SHA256SUMS"] = hashlib.sha256(manifest.read_bytes()).hexdigest()
+    bundle = directory / BUNDLE
+    if bundle.is_symlink() or not bundle.is_file():
+        raise ValueError("invalid release signature bundle")
+    sums[BUNDLE] = hashlib.sha256(bundle.read_bytes()).hexdigest()
     base = "https://github.com/" + repo + "/releases/download/" + version + "/"
     formula = (directory / "socklens.rb").read_text(encoding="utf-8")
     if 'version "' + version[1:] + '"' not in formula:

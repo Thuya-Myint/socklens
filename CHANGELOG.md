@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.11.0 — 2026-11-13
+
+- Reconcile event-mode snapshots after missed notifications; add configurable reconciliation, selected-backend watch statistics, and platform doctor reports.
+- Filter irrelevant Linux owner inodes; add enumeration benchmark without claiming an unmeasured speedup.
+- Sign release manifests using GitHub Actions Sigstore identity; require independent Cosign verification before standalone installation or candidate execution, with no unsigned fallback.
+- Preserve formatter failures, propagate doctor output errors, and cover diagnostics, reconciliation, signature-policy failures and installer preservation in regression tests.
+
 ## v0.10.0 — 2026-11-10
 
 - Explicit TLS certificate checks for one host/port, with bounded per-address and total deadlines, one-time DNS resolution, numeric pinning, and cancellation.
