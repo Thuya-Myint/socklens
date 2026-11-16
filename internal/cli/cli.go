@@ -50,6 +50,7 @@ Manage:
 
 About:
   version        Show the installed version
+  completion     Generate shell completion scripts
   help           Show this overview
 
 Examples:
@@ -112,6 +113,8 @@ func RunContext(ctx context.Context, args []string, in io.Reader, out, errOut io
 			return fail(errOut, err)
 		}
 		return 0
+	case "completion":
+		return completionCommand(args[1:], out, errOut)
 	case "doctor":
 		return doctorCommand(ctx, args[1:], out, errOut)
 	case "check":
