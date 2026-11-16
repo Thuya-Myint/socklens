@@ -8,6 +8,7 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
+	"debug/pe"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
@@ -25,6 +26,7 @@ type settings struct {
 	version, commit string
 	stamp           time.Time
 	root, out       string
+	windowsBinaries string
 }
 
 type buildTarget struct{ OS, Arch string }
@@ -70,6 +72,7 @@ func run(args []string, out io.Writer) error {
 	date := fs.String("date", time.Now().UTC().Format(time.RFC3339), "RFC3339 build date")
 	directory := fs.String("out", "dist", "output parent directory")
 	goBin := fs.String("go", "go", "Go executable")
+	windowsBinaries := fs.String("windows-binaries", "", "directory of independently Authenticode-verified windows_amd64.exe and windows_arm64.exe (no rebuild)")
 	if err := fs.Parse(args); err != nil {
 		if err == flag.ErrHelp {
 			return nil
@@ -94,6 +97,7 @@ func run(args []string, out io.Writer) error {
 		return fmt.Errorf("run from the SockLens project root: %w", err)
 	}
 	opts := settings{version: *version, commit: *commit, stamp: stamp.UTC(), root: root, out: *directory}
+	opts.windowsBinaries = *windowsBinaries
 	build := func(target buildTarget, destination string) error {
 		flags := fmt.Sprintf("-s -w -X main.version=%s -X main.commit=%s -X main.buildDate=%s", opts.version, opts.commit, opts.stamp.Format(time.RFC3339))
 		cmd := exec.CommandContext(context.Background(), *goBin, "build", "-trimpath", "-ldflags", flags, "-o", destination, "./cmd/socklens")
@@ -153,7 +157,11 @@ func packageRelease(opts settings, build func(buildTarget, string) error) error 
 			binaryName += ".exe"
 		}
 		binary := filepath.Join(work, binaryName)
-		err = build(target, binary)
+		if target.OS == "windows" && opts.windowsBinaries != "" {
+			err = copyWindowsBinary(opts.windowsBinaries, target, binary)
+		} else {
+			err = build(target, binary)
+		}
 		if err != nil {
 			os.RemoveAll(work)
 			return err
@@ -231,6 +239,38 @@ func packageRelease(opts settings, build func(buildTarget, string) error) error 
 	}
 
 	return nil
+}
+
+// The release workflow verifies Authenticode on Windows before uploading these
+// inputs. Preserve those exact bytes: rebuilding would discard the signature.
+func copyWindowsBinary(directory string, target buildTarget, destination string) error {
+	path := filepath.Join(directory, target.label()+".exe")
+	info, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("Windows release input is not a regular file: %s", path)
+	}
+	file, err := pe.Open(path)
+	if err != nil {
+		return err
+	}
+	machine := uint16(pe.IMAGE_FILE_MACHINE_AMD64)
+	if target.Arch == "arm64" {
+		machine = pe.IMAGE_FILE_MACHINE_ARM64
+	}
+	header, ok := file.OptionalHeader.(*pe.OptionalHeader64)
+	valid := file.Machine == machine && ok && header.DataDirectory[pe.IMAGE_DIRECTORY_ENTRY_SECURITY].Size > 0
+	file.Close()
+	if !valid {
+		return fmt.Errorf("Windows release input has wrong architecture or no embedded signature: %s", path)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(destination, data, 0755)
 }
 
 func writeArchive(destination, prefix string, stamp time.Time, files []archiveFile) (err error) {
