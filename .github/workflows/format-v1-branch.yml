@@ -1,0 +1,31 @@
+name: Format v1 feature branch
+on:
+  push:
+    branches: [feature/v1-completion]
+    paths:
+      - .github/workflows/format-v1-branch.yml
+      - internal/cli/cli.go
+      - internal/cli/completion.go
+      - internal/cli/completion_test.go
+      - internal/cli/advanced_filters_test.go
+permissions:
+  contents: write
+jobs:
+  gofmt:
+    if: github.repository == 'Thuya-Myint/socklens'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Format only modified feature files
+        run: gofmt -w internal/cli/cli.go internal/cli/completion.go internal/cli/completion_test.go internal/cli/advanced_filters_test.go
+      - name: Commit formatting if necessary
+        run: |
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add internal/cli/cli.go internal/cli/completion.go internal/cli/completion_test.go internal/cli/advanced_filters_test.go
+            git commit -m "style: gofmt v1 feature files"
+            git push
+          fi
