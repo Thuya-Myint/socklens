@@ -50,6 +50,7 @@ Manage:
 
 About:
   version        Show the installed version
+  completion     Generate shell completion scripts
   help           Show this overview
 
 Examples:
@@ -112,6 +113,8 @@ func RunContext(ctx context.Context, args []string, in io.Reader, out, errOut io
 			return fail(errOut, err)
 		}
 		return 0
+	case "completion":
+		return completionCommand(args[1:], out, errOut)
 	case "doctor":
 		return doctorCommand(ctx, args[1:], out, errOut)
 	case "check":
@@ -173,6 +176,10 @@ func addSocketFlags(fs *flag.FlagSet) *socketOptions {
 	fs.IntVar(&opts.filter.port, "port", 0, "local port (1-65535)")
 	fs.StringVar(&opts.filter.protocol, "protocol", "", "tcp or udp")
 	fs.IntVar(&opts.filter.pid, "pid", 0, "owning process ID (positive integer)")
+	fs.StringVar(&opts.filter.process, "process", "", "case-insensitive process name substring")
+	fs.StringVar(&opts.filter.portRange, "port-range", "", "inclusive local port range START-END")
+	fs.StringVar(&opts.filter.state, "state", "", "socket state, case-insensitive")
+	fs.StringVar(&opts.filter.localAddress, "local-address", "", "exact local IP address")
 	if fs.Name() == "audit" {
 		opts.filter.listening = true
 	} else {
@@ -212,6 +219,23 @@ func (opts *socketOptions) validate(fs *flag.FlagSet) error {
 	} else if fs.NArg() != 0 {
 		return fmt.Errorf("unexpected arguments")
 	}
+	if opts.filter.portRange != "" {
+		parts := strings.Split(opts.filter.portRange, "-")
+		if len(parts) != 2 {
+			return fmt.Errorf("port-range must be START-END")
+		}
+		lo, e1 := strconv.Atoi(parts[0])
+		hi, e2 := strconv.Atoi(parts[1])
+		if e1 != nil || e2 != nil || lo < 1 || hi > 65535 || lo > hi {
+			return fmt.Errorf("port-range must be 1-65535 with START <= END")
+		}
+		if opts.filter.port != 0 && (opts.filter.port < lo || opts.filter.port > hi) {
+			return fmt.Errorf("port and port-range filters conflict")
+		}
+	}
+	if opts.filter.localAddress != "" && net.ParseIP(opts.filter.localAddress) == nil {
+		return fmt.Errorf("local-address must be a numeric IP address")
+	}
 	if opts.filter.protocol != "" && opts.filter.protocol != "tcp" && opts.filter.protocol != "udp" {
 		return fmt.Errorf("protocol must be tcp or udp")
 	}
@@ -245,21 +269,56 @@ func sockets(command string, args []string, out, errOut io.Writer) int {
 }
 
 type socketFilter struct {
-	port      int
-	protocol  string
-	pid       int
-	listening bool
+	port         int
+	protocol     string
+	pid          int
+	listening    bool
+	process      string
+	portRange    string
+	state        string
+	localAddress string
 }
 
 func filterSockets(rows []platform.Socket, filter socketFilter) ([]platform.Socket, error) {
 	filtered := make([]platform.Socket, 0)
 	for _, row := range rows {
-		_, port, err := net.SplitHostPort(row.Local)
+		host, port, err := net.SplitHostPort(row.Local)
 		if err != nil {
 			return nil, err
 		}
 		if filter.port != 0 && port != strconv.Itoa(filter.port) {
 			continue
+		}
+		if filter.portRange != "" {
+			parts := strings.Split(filter.portRange, "-")
+			lo, _ := strconv.Atoi(parts[0])
+			hi, _ := strconv.Atoi(parts[1])
+			n, e := strconv.Atoi(port)
+			if e != nil || n < lo || n > hi {
+				continue
+			}
+		}
+		if filter.localAddress != "" {
+			a := net.ParseIP(host)
+			b := net.ParseIP(filter.localAddress)
+			if a == nil || !a.Equal(b) {
+				continue
+			}
+		}
+		if filter.state != "" && !strings.EqualFold(row.State, filter.state) {
+			continue
+		}
+		if filter.process != "" {
+			found := false
+			for _, p := range row.Processes {
+				if strings.Contains(strings.ToLower(p.Name), strings.ToLower(filter.process)) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
 		}
 		if filter.protocol != "" && row.Protocol != filter.protocol {
 			continue
