@@ -39,6 +39,7 @@ Connect:
 
 Monitor:
   watch          Watch socket changes using OS events
+  snapshot       Save and compare socket snapshots
   doctor         Diagnose platform capabilities and collection performance
   wait PORT      Wait for sockets to appear or disappear
 
@@ -60,6 +61,8 @@ Examples:
   socklens tls --host example.com
   socklens inspect --protocol tcp 8080
   socklens watch --changes --port 8080
+  socklens snapshot save before.json
+  socklens snapshot diff before.json after.json
   socklens wait --until present --listening --timeout 30s 8080
   socklens wait --until absent --listening --timeout 30s 8080
   socklens terminate --pid 12345 --dry-run
@@ -137,6 +140,8 @@ func RunContext(ctx context.Context, args []string, in io.Reader, out, errOut io
 		return tlsCommand(ctx, args[1:], out, errOut, tlscheck.Engine{})
 	case "audit":
 		return auditCommand(ctx, args[1:], out, errOut, platform.List)
+	case "snapshot":
+		return snapshotCommand(args[1:], out, errOut)
 	case "watch":
 		return watchCommand(ctx, args[1:], in, out, errOut, mode)
 	case "wait":
