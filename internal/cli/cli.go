@@ -56,6 +56,7 @@ About:
 
 Examples:
   socklens list --listening
+  socklens list --format json-v1
   socklens audit --port 8080
   socklens probe --host 127.0.0.1 --ports 8080
   socklens tls --host example.com
@@ -69,7 +70,8 @@ Examples:
 
 Options:
   --color MODE   auto (default), always, or never; NO_COLOR disables auto color
-  --json         Structured output for list, inspect, audit, probe, tls, watch, wait, update-check
+  --json         Legacy structured output for list, inspect, audit, probe, tls, watch, wait, update-check
+  --format json-v1   Versioned JSON output for list and inspect
   -h, --help     Command options, for example: socklens list --help
 
 Put options before PORT for inspect and wait. JSON output never includes colors.
@@ -89,7 +91,7 @@ func RunContext(ctx context.Context, args []string, in io.Reader, out, errOut io
 	if err != nil {
 		return fail(errOut, err)
 	}
-	if jsonRequested(args) {
+	if jsonRequested(args) || jsonV1Requested(args) {
 		mode = "never"
 	}
 	out, errOut = terminal.Wrap(out, mode), terminal.Wrap(errOut, mode)
@@ -174,6 +176,7 @@ type socketOptions struct {
 	stats     bool          // print monitoring diagnostics to stderr
 	filter    socketFilter
 	json      bool
+	format    string
 }
 
 func addSocketFlags(fs *flag.FlagSet) *socketOptions {
@@ -200,6 +203,9 @@ func addSocketFlags(fs *flag.FlagSet) *socketOptions {
 		jsonHelp = "one JSON audit report with listeners, findings, and scope limitations"
 	}
 	fs.BoolVar(&opts.json, "json", false, jsonHelp)
+	if fs.Name() == "list" || fs.Name() == "inspect" {
+		fs.StringVar(&opts.format, "format", "table", "output format: table or json-v1")
+	}
 	return opts
 }
 
@@ -238,6 +244,12 @@ func (opts *socketOptions) validate(fs *flag.FlagSet) error {
 			return fmt.Errorf("port and port-range filters conflict")
 		}
 	}
+	if opts.format != "" && opts.format != "table" && opts.format != "json-v1" {
+		return fmt.Errorf("format must be table or json-v1")
+	}
+	if opts.format == "json-v1" && opts.json {
+		return fmt.Errorf("--json and --format json-v1 cannot be combined")
+	}
 	if opts.filter.localAddress != "" && net.ParseIP(opts.filter.localAddress) == nil {
 		return fmt.Errorf("local-address must be a numeric IP address")
 	}
@@ -266,6 +278,12 @@ func sockets(command string, args []string, out, errOut io.Writer) int {
 	filtered, err := filterSockets(rows, opts.filter)
 	if err != nil {
 		return fail(errOut, err)
+	}
+	if opts.format == "json-v1" {
+		if err := writeSocketsV1(out, command, filtered); err != nil {
+			return fail(errOut, err)
+		}
+		return 0
 	}
 	if err := writeSockets(out, filtered, opts.json); err != nil {
 		return fail(errOut, err)
