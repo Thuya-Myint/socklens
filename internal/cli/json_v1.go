@@ -89,3 +89,12 @@ func writeSocketsV1(out io.Writer, command string, rows []platform.Socket) error
 	enc.SetIndent("", "  ")
 	return enc.Encode(result)
 }
+
+func jsonV1Requested(args []string) bool {
+	for i, arg := range args {
+		if arg == "--format=json-v1" || (arg == "--format" && i+1 < len(args) && args[i+1] == "json-v1") {
+			return true
+		}
+	}
+	return false
+}
