@@ -14,13 +14,13 @@ import (
 
 // JSON v1 is opt-in. Legacy --json output remains unchanged for compatibility.
 type socketJSONV1 struct {
-	Protocol  string             `json:"protocol"`
-	Local     endpointJSONV1     `json:"local"`
-	Remote    endpointJSONV1     `json:"remote"`
-	State     string             `json:"state"`
-	Inode     string             `json:"inode,omitempty"`
-	PIDs      []int              `json:"pids"`
-	Processes []processJSONV1    `json:"processes"`
+	Protocol  string          `json:"protocol"`
+	Local     endpointJSONV1  `json:"local"`
+	Remote    endpointJSONV1  `json:"remote"`
+	State     string          `json:"state"`
+	Inode     string          `json:"inode,omitempty"`
+	PIDs      []int           `json:"pids"`
+	Processes []processJSONV1 `json:"processes"`
 }
 
 type endpointJSONV1 struct {
@@ -56,10 +56,10 @@ func endpointV1(raw string) (endpointJSONV1, error) {
 func writeSocketsV1(out io.Writer, command string, rows []platform.Socket) error {
 	result := socketResponseJSONV1{
 		SchemaVersion: "1.0",
-		Command: command,
-		GeneratedAt: time.Now().UTC(),
-		Count: len(rows),
-		Sockets: make([]socketJSONV1, 0, len(rows)),
+		Command:       command,
+		GeneratedAt:   time.Now().UTC(),
+		Count:         len(rows),
+		Sockets:       make([]socketJSONV1, 0, len(rows)),
 	}
 	for _, row := range rows {
 		local, err := endpointV1(row.Local)
@@ -77,7 +77,7 @@ func writeSocketsV1(out io.Writer, command string, rows []platform.Socket) error
 		item := socketJSONV1{
 			Protocol: row.Protocol, Local: local, Remote: remote,
 			State: row.State, Inode: row.Inode,
-			PIDs: append([]int{}, row.PIDs...),
+			PIDs:      append([]int{}, row.PIDs...),
 			Processes: make([]processJSONV1, 0, len(row.Processes)),
 		}
 		for _, process := range row.Processes {
@@ -90,11 +90,27 @@ func writeSocketsV1(out io.Writer, command string, rows []platform.Socket) error
 	return enc.Encode(result)
 }
 
-func jsonV1Requested(args []string) bool {
-	for i, arg := range args {
-		if arg == "--format=json-v1" || (arg == "--format" && i+1 < len(args) && args[i+1] == "json-v1") {
-			return true
+// JSONV1Requested recognizes list/inspect JSON v1 options in normalized arguments.
+// It respects flag values and positional boundaries, and is shared with main to
+// suppress automatic update checks as well as terminal styling.
+func JSONV1Requested(args []string) bool {
+	if len(args) == 0 || (args[0] != "list" && args[0] != "inspect") {
+		return false
+	}
+	format := "table"
+	for i := 1; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--" || !strings.HasPrefix(arg, "-") {
+			break
+		}
+		name, value, equals := strings.Cut(arg, "=")
+		if !equals && takesValue(name) && i+1 < len(args) {
+			i++
+			value = args[i]
+		}
+		if name == "--format" || name == "-format" {
+			format = value
 		}
 	}
-	return false
+	return format == "json-v1"
 }

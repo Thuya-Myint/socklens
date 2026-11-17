@@ -351,6 +351,7 @@ JSON. Nothing is installed or replaced automatically. Audit and probe never sche
 | --pid PID | list, inspect, watch, wait, audit | Filter by an observed process ID |
 | --listening | list, inspect, watch, wait | Select TCP listeners and unconnected/bound UDP sockets |
 | --json | list, inspect, watch, wait, audit | Produce JSON output |
+| --format json-v1 | list, inspect | Opt in to a versioned socket response; see [JSON v1 reference](docs/json-v1.md) |
 
 Filters combine: a socket must match every supplied filter. inspect and wait take their port as a positional argument; do not also pass --port.
 
@@ -369,6 +370,7 @@ socklens list --listening
 socklens list --port 8080 --protocol tcp
 socklens list --pid 12345
 socklens list --json
+socklens list --format json-v1
 ```
 
 Lists sockets in all states by default. Text output includes protocol, local/remote endpoints, state, process IDs, and process names. Unavailable owner information appears as a dash. From v0.7.2, Windows fills missing executable names from a native process snapshot when its preferred full-image lookup is denied. Names are best-effort observations; this does not reveal or verify the executable path.
@@ -381,11 +383,15 @@ IPv4 and IPv6 are supported. On Windows, UDP rows are BOUND because connection s
 socklens inspect 8080
 socklens inspect --listening --protocol tcp 8080
 socklens inspect --pid 12345 --json 8080
+socklens inspect --format json-v1 8080
 ```
 
 Shows sockets matching the required local port. Accepts --protocol, --pid, --listening, and --json.
 
-An empty result means no matching socket was observed. Empty JSON output is [].
+An empty result means no matching socket was observed. Empty legacy `--json`
+output is `[]`. With `--format json-v1`, the response is an object with
+`schema_version`, `command`, `generated_at`, `count`, and `sockets`; an empty
+result has `count: 0` and `sockets: []`. See the [schema and examples](docs/json-v1.md).
 
 ### audit
 

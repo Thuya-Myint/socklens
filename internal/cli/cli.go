@@ -91,7 +91,7 @@ func RunContext(ctx context.Context, args []string, in io.Reader, out, errOut io
 	if err != nil {
 		return fail(errOut, err)
 	}
-	if jsonRequested(args) || jsonV1Requested(args) {
+	if jsonRequested(args) || JSONV1Requested(args) {
 		mode = "never"
 	}
 	out, errOut = terminal.Wrap(out, mode), terminal.Wrap(errOut, mode)
@@ -244,7 +244,7 @@ func (opts *socketOptions) validate(fs *flag.FlagSet) error {
 			return fmt.Errorf("port and port-range filters conflict")
 		}
 	}
-	if opts.format != "" && opts.format != "table" && opts.format != "json-v1" {
+	if supplied["format"] && opts.format != "table" && opts.format != "json-v1" {
 		return fmt.Errorf("format must be table or json-v1")
 	}
 	if opts.format == "json-v1" && opts.json {
@@ -260,6 +260,10 @@ func (opts *socketOptions) validate(fs *flag.FlagSet) error {
 }
 
 func sockets(command string, args []string, out, errOut io.Writer) int {
+	return socketsWithSource(command, args, out, errOut, platform.List)
+}
+
+func socketsWithSource(command string, args []string, out, errOut io.Writer, list func() ([]platform.Socket, error)) int {
 	fs := newCommandFlags(command, errOut)
 	opts := addSocketFlags(fs)
 	if err := parseCommandFlags(fs, args, errOut); err != nil {
@@ -271,7 +275,7 @@ func sockets(command string, args []string, out, errOut io.Writer) int {
 	if err := opts.validate(fs); err != nil {
 		return fail(errOut, err)
 	}
-	rows, err := platform.List()
+	rows, err := list()
 	if err != nil {
 		return fail(errOut, err)
 	}

@@ -82,7 +82,7 @@ func isTerminal(file *os.File) bool {
 	return terminal.IsTerminal(file)
 }
 func shouldAutoNotify(args []string, terminal bool) bool {
-	if !terminal || len(args) == 0 {
+	if !terminal || len(args) == 0 || cli.JSONV1Requested(args) {
 		return false
 	}
 	switch args[0] {
