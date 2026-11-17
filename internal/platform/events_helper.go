@@ -18,6 +18,7 @@ type helperSocketEvents struct {
 	done    chan struct{}
 	err     error // published by closing done
 	once    sync.Once
+	stats   notificationStats
 }
 
 func startEventHelper(ctx context.Context, name, path string, args ...string) (SocketEvents, error) {
@@ -48,10 +49,7 @@ func startEventHelper(ctx context.Context, name, path string, args ...string) (S
 					ready = true
 				}
 			case "CHANGE":
-				select {
-				case source.changes <- struct{}{}:
-				default:
-				}
+				source.stats.notify(source.changes)
 			}
 		}
 		scanErr := scanner.Err()
@@ -78,6 +76,8 @@ func startEventHelper(ctx context.Context, name, path string, args ...string) (S
 		return nil, fmt.Errorf("%s did not attach within 10s; check probe availability and tracing privileges", name)
 	}
 }
+
+func (s *helperSocketEvents) EventStats() SocketEventStats { return s.stats.snapshot() }
 
 func (s *helperSocketEvents) Wait(ctx context.Context) error {
 	select {

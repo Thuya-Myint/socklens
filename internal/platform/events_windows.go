@@ -99,14 +99,12 @@ func socketETWCallback() uintptr {
 func notifySocketETW(record *etwRecord) {
 	if value, ok := etwSources.Load(record.UserContext); ok {
 		source := value.(*windowsSocketEvents)
-		select {
-		case source.changes <- struct{}{}:
-		default:
-		}
+		source.stats.notify(source.changes)
 	}
 }
 
 type windowsSocketEvents struct {
+	stats             notificationStats
 	changes           chan struct{}
 	done              chan struct{}
 	stop              chan struct{}
@@ -117,6 +115,8 @@ type windowsSocketEvents struct {
 	name              []uint16
 	log               etwLogfile
 }
+
+func (s *windowsSocketEvents) EventStats() SocketEventStats { return s.stats.snapshot() }
 
 func (s *windowsSocketEvents) propertiesPointer() uintptr {
 	return uintptr(unsafe.Pointer(&s.properties[0]))
