@@ -58,10 +58,19 @@ func TestSocketETWRouting(t *testing.T) {
 	if len(a.changes) != 1 || len(b.changes) != 0 {
 		t.Fatal("callbacks must coalesce and notify only their owning session")
 	}
+	if got := a.EventStats(); got.Notifications != 100 || got.Coalesced != 99 {
+		t.Fatalf("callback stats=%+v", got)
+	}
+	if got := b.EventStats(); got.Notifications != 0 || got.Coalesced != 0 {
+		t.Fatalf("other session stats=%+v", got)
+	}
 	etwSources.Delete(first)
 	<-a.changes
 	notifySocketETW(&etwRecord{UserContext: first})
 	if len(a.changes) != 0 {
 		t.Fatal("late callback reached a closed session")
+	}
+	if a.EventStats().Notifications != 100 {
+		t.Fatal("late callback incremented a closed session")
 	}
 }

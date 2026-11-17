@@ -18,9 +18,14 @@ type helperSocketEvents struct {
 	done    chan struct{}
 	err     error // published by closing done
 	once    sync.Once
+	stats   notificationStats
 }
 
 func startEventHelper(ctx context.Context, name, path string, args ...string) (SocketEvents, error) {
+	return startEventHelperWithTimeout(ctx, 30*time.Second, name, path, args...)
+}
+
+func startEventHelperWithTimeout(ctx context.Context, attachTimeout time.Duration, name, path string, args ...string) (SocketEvents, error) {
 	// Attachment must finish before the initial snapshot to avoid a startup gap.
 	childCtx, cancel := context.WithCancel(ctx)
 	cmd := exec.CommandContext(childCtx, path, args...)
@@ -48,10 +53,7 @@ func startEventHelper(ctx context.Context, name, path string, args ...string) (S
 					ready = true
 				}
 			case "CHANGE":
-				select {
-				case source.changes <- struct{}{}:
-				default:
-				}
+				source.stats.notify(source.changes)
 			}
 		}
 		scanErr := scanner.Err()
@@ -62,7 +64,7 @@ func startEventHelper(ctx context.Context, name, path string, args ...string) (S
 		source.err = fmt.Errorf("%s socket event helper stopped (read: %v, exit: %v): %s", name, scanErr, waitErr, diagnostics.text)
 		close(source.done)
 	}()
-	timer := time.NewTimer(10 * time.Second)
+	timer := time.NewTimer(attachTimeout)
 	defer timer.Stop()
 	select {
 	case <-source.ready:
@@ -75,9 +77,11 @@ func startEventHelper(ctx context.Context, name, path string, args ...string) (S
 		return nil, ctx.Err()
 	case <-timer.C:
 		source.Close()
-		return nil, fmt.Errorf("%s did not attach within 10s; check probe availability and tracing privileges", name)
+		return nil, fmt.Errorf("%s did not attach within %s; check probe availability and tracing privileges: %s", name, attachTimeout, diagnostics.text)
 	}
 }
+
+func (s *helperSocketEvents) EventStats() SocketEventStats { return s.stats.snapshot() }
 
 func (s *helperSocketEvents) Wait(ctx context.Context) error {
 	select {

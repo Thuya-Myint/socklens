@@ -32,7 +32,8 @@ func watchCommandWithSources(ctx context.Context, args []string, out, errOut io.
 	fs.BoolVar(&opts.changes, "changes", true, "report only changes after an initial baseline")
 	fs.BoolVar(&opts.stats, "stats", false, "print collection diagnostics to stderr when watch ends")
 	interval := fs.Duration("interval", 2*time.Second, "polling delay (minimum 100ms; unused with events)")
-	reconcile := fs.Duration("reconcile", 20*time.Second, "maximum time between event-mode snapshots (minimum 1s)")
+	reconcile := fs.Duration("reconcile", 20*time.Second, "idle event wait before reconciliation (minimum 1s; collection/output time adds)")
+	eventInterval := fs.Duration("event-interval", 100*time.Millisecond, "minimum idle gap after an event-mode snapshot (100ms to reconcile interval)")
 	count := fs.Int("count", 0, "number of snapshots; 0 watches until interrupted")
 	backend := fs.String("backend", "events", "watch backend: events (default), auto, or poll")
 	if err := parseCommandFlags(fs, args, errOut); err != nil {
@@ -50,6 +51,9 @@ func watchCommandWithSources(ctx context.Context, args []string, out, errOut io.
 	if *reconcile < time.Second {
 		return fail(errOut, fmt.Errorf("reconcile must be at least 1s"))
 	}
+	if *eventInterval < 100*time.Millisecond || *eventInterval > *reconcile {
+		return fail(errOut, fmt.Errorf("event-interval must be at least 100ms and no greater than reconcile"))
+	}
 	if *count < 0 {
 		return fail(errOut, fmt.Errorf("count must be zero or positive"))
 	}
@@ -65,7 +69,11 @@ func watchCommandWithSources(ctx context.Context, args []string, out, errOut io.
 		var err error
 		events, err = subscribe(ctx)
 		if events != nil {
-			defer events.Close()
+			defer func() {
+				if events != nil {
+					events.Close()
+				}
+			}()
 		}
 		if ctx.Err() != nil {
 			return 0
@@ -76,34 +84,36 @@ func watchCommandWithSources(ctx context.Context, args []string, out, errOut io.
 		if errors.Is(err, watchsetup.ErrSetupStopped) {
 			return fail(errOut, err)
 		}
+		if err == nil && events == nil {
+			err = fmt.Errorf("socket event backend returned no source")
+		}
 		if err != nil {
 			if *backend == "events" {
 				return fail(errOut, err)
 			}
 			fmt.Fprintln(errOut, "watch: using polling:", err)
+			if events != nil {
+				events.Close()
+			}
+			events = nil
 		} else {
 			selectedBackend = "events"
 			fmt.Fprintf(errOut, "watch: using %s socket events\n", runtime.GOOS)
 		}
 	}
 	opts.reconcile = *reconcile
+	opts.eventInterval = *eventInterval
 	if opts.stats {
-		var collections int
-		var total time.Duration
-		original := list
-		list = func() ([]platform.Socket, error) {
-			start := time.Now()
-			rows, err := original()
-			collections++
-			total += time.Since(start)
-			return rows, err
-		}
-		defer func() {
-			fmt.Fprintf(errOut, "watch diagnostics: backend=%s collections=%d collection_total=%s reconcile=%s\n", selectedBackend, collections, total, opts.reconcile)
-		}()
+		opts.diagnostics = &watchDiagnostics{}
 	}
-	if err := watchSnapshotsWithEvents(ctx, out, *opts, *interval, *count, list, events); err != nil {
-		return fail(errOut, err)
+	runErr := watchSnapshotsWithEvents(ctx, out, *opts, *interval, *count, list, events)
+	if opts.stats {
+		if err := opts.diagnostics.write(errOut, selectedBackend, *opts, events); err != nil {
+			return fail(errOut, err)
+		}
+	}
+	if runErr != nil {
+		return fail(errOut, runErr)
 	}
 	return 0
 }
@@ -117,11 +127,14 @@ func watchSnapshots(ctx context.Context, out io.Writer, opts socketOptions, inte
 func watchSnapshotsWithEvents(ctx context.Context, out io.Writer, opts socketOptions, interval time.Duration, count int, list func() ([]platform.Socket, error), events platform.SocketEvents) error {
 	enc := json.NewEncoder(out)
 	var previous []platform.Socket
+	reason := collectionBaseline
 	for n := 0; count == 0 || n < count; n++ {
 		if ctx.Err() != nil {
 			return nil
 		}
+		started := time.Now()
 		rows, err := list()
+		opts.diagnostics.collected(reason, time.Since(started), err)
 		if ctx.Err() != nil {
 			return nil
 		}
@@ -159,32 +172,60 @@ func watchSnapshotsWithEvents(ctx context.Context, out io.Writer, opts socketOpt
 			return nil
 		}
 		if events != nil {
+			completedAt := time.Now()
 			reconcile := opts.reconcile
 			if reconcile == 0 {
 				reconcile = 20 * time.Second
 			}
 			waitCtx, cancel := context.WithTimeout(ctx, reconcile)
 			err := events.Wait(waitCtx)
+			waitErr := waitCtx.Err()
 			cancel()
-			if err != nil && errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
+			if err != nil && errors.Is(err, context.DeadlineExceeded) && waitErr == context.DeadlineExceeded && ctx.Err() == nil {
 				// A reconciliation snapshot recovers changes missed by the event source.
+				reason = collectionReconcile
 				continue
 			}
 			if err != nil {
 				if ctx.Err() != nil {
 					return nil
 				}
+				if opts.diagnostics != nil {
+					opts.diagnostics.eventErrors++
+				}
 				return fmt.Errorf("watch events: %w", err)
 			}
+			// One pending invalidation represents a burst. Do not keep extending
+			// the delay as new notifications arrive, or busy hosts could starve
+			// collection indefinitely. The source's bounded queue coalesces them.
+			delay := min(opts.eventInterval-time.Since(completedAt), reconcile-time.Since(completedAt))
+			if !waitWatchDelay(ctx, delay) {
+				return nil
+			}
+			reason = collectionEvent
 			continue
 		}
-		timer := time.NewTimer(interval)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
+		if !waitWatchDelay(ctx, interval) {
 			return nil
-		case <-timer.C:
 		}
+		reason = collectionPoll
 	}
 	return nil
+}
+
+func waitWatchDelay(ctx context.Context, delay time.Duration) bool {
+	if ctx.Err() != nil {
+		return false
+	}
+	if delay <= 0 {
+		return true
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return ctx.Err() == nil
+	}
 }
