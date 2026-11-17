@@ -28,6 +28,11 @@ JSON, redirected and noninteractive runs never prompt or elevate. `doctor` check
 prerequisites without proving that attachment will succeed. A runtime source
 failure stops the watch; `auto` does not silently switch backends mid-session.
 
+bpftrace/DTrace helper attachment has a 30-second deadline to allow probe
+compilation/attachment on busy hosts. Cancellation interrupts startup sooner.
+Attachment timeouts include bounded helper stderr diagnostics; increasing the
+deadline does not bypass missing privileges or unavailable probes.
+
 ## Event bursts and idle reconciliation
 
 The baseline is immediate. `--event-interval` defaults to `100ms`, with a minimum

@@ -51,7 +51,9 @@ func TestSocketEventsLive(t *testing.T) {
 	if os.Getenv("SOCKLENS_EVENT_INTEGRATION") != "1" {
 		t.Skip("requires opt-in privileged OS tracing")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+	// Helper attachment may take up to 30s on busy tracing hosts. Leave time
+	// for owned TCP/UDP lifecycle checks and cleanup after attachment.
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Second)
 	defer cancel()
 	source, err := WatchSocketEvents(ctx)
 	if err != nil {
