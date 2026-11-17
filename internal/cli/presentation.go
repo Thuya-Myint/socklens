@@ -51,7 +51,7 @@ func ParseColorArgs(args []string) ([]string, string, error) {
 }
 func takesValue(name string) bool {
 	switch strings.TrimLeft(name, "-") {
-	case "port", "pid", "protocol", "interval", "count", "until", "timeout", "peer", "firewall-timeout", "rule-limit", "host", "ports", "family", "connect-timeout", "concurrency", "server-name", "handshake-timeout", "ca-file":
+	case "port", "pid", "protocol", "interval", "count", "until", "timeout", "peer", "firewall-timeout", "rule-limit", "host", "ports", "family", "connect-timeout", "concurrency", "server-name", "handshake-timeout", "ca-file", "format", "process", "state", "port-range", "local-address", "reconcile":
 		return true
 	}
 	return false
