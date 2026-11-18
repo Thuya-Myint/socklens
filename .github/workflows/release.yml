@@ -56,8 +56,73 @@ jobs:
     with:
       ref: ${{ needs.resolve.outputs.sha }}
 
-  publish:
+  windows-sign:
     needs: [resolve, tests]
+    runs-on: windows-latest
+    environment: windows-signing
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+          cache: false
+      - name: Require signing configuration
+        shell: pwsh
+        env:
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          SIGNING_ENDPOINT: ${{ vars.SIGNING_ENDPOINT }}
+          SIGNING_ACCOUNT: ${{ vars.SIGNING_ACCOUNT }}
+          SIGNING_PROFILE: ${{ vars.SIGNING_PROFILE }}
+          SIGNING_SUBJECT: ${{ vars.SIGNING_SUBJECT }}
+        run: |
+          foreach ($name in @('AZURE_CLIENT_ID', 'AZURE_TENANT_ID', 'AZURE_SUBSCRIPTION_ID', 'SIGNING_ENDPOINT', 'SIGNING_ACCOUNT', 'SIGNING_PROFILE', 'SIGNING_SUBJECT')) {
+            if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) { throw "Configure windows-signing environment variable $name; unsigned publication is refused." }
+          }
+      - name: Build both Windows architectures from tested source
+        shell: pwsh
+        env:
+          VERSION: ${{ needs.resolve.outputs.version }}
+          SOURCE_COMMIT: ${{ needs.resolve.outputs.sha }}
+        run: ./.github/scripts/build_windows.ps1 -Version $env:VERSION -Commit $env:SOURCE_COMMIT -Directory "$env:RUNNER_TEMP/windows-signed"
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - uses: azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2
+        with:
+          endpoint: ${{ vars.SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.SIGNING_PROFILE }}
+          files-folder: ${{ runner.temp }}/windows-signed
+          files-folder-filter: exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          exclude-environment-credential: true
+          exclude-azure-cli-credential: false
+      - name: Verify embedded signatures, publisher, and timestamps
+        shell: pwsh
+        env:
+          SIGNING_SUBJECT: ${{ vars.SIGNING_SUBJECT }}
+        run: ./.github/scripts/verify_windows.ps1 -Directory "$env:RUNNER_TEMP/windows-signed" -ExpectedSubject $env:SIGNING_SUBJECT
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows-signed
+          path: ${{ runner.temp }}/windows-signed/*.exe
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    needs: [resolve, tests, windows-sign]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -76,8 +141,12 @@ jobs:
         with:
           go-version: stable
           cache: false
-      - name: Package tested source
-        run: make release VERSION="$VERSION" COMMIT="$SOURCE_COMMIT" BUILD_DATE="$(git show -s --format=%cI "$SOURCE_COMMIT")"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: windows-signed
+          path: ${{ runner.temp }}/windows-signed
+      - name: Package tested source and verified signed Windows binaries
+        run: go run ./tools/release --version "$VERSION" --commit "$SOURCE_COMMIT" --date "$(git show -s --format=%cI "$SOURCE_COMMIT")" --windows-binaries "$RUNNER_TEMP/windows-signed"
       - name: Verify all local checksums
         run: |
           cd "dist/$VERSION"

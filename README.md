@@ -30,6 +30,11 @@ socklens version
 
 The bucket selects the x64 or ARM64 Windows binary and receives new release manifests automatically.
 
+If Windows reports that part of the app has been blocked and Scoop's shim cannot
+create the process, see [Windows security troubleshooting](docs/windows-security.md).
+The updater cannot run when Windows blocks the executable at process creation.
+Sigstore checksum-manifest signing does not provide Windows Authenticode trust.
+
 ### Linux — binary installer
 
 ```sh
