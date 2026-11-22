@@ -1,6 +1,6 @@
 # Actionable audit output
 
-Development change: clearer default text for local listener audits. The following
+Available from v0.12.0: clearer default text for local listener audits. The following
 are selected lines from representative fixtures, not observations of your machine.
 Other process, finding and conditional-rule fields remain available.
 
@@ -121,7 +121,7 @@ collection was disabled, it is not silently re-enabled by rendering a suggestion
 
 ## Try the workflow
 
-Use the executable containing this development change:
+Use v0.12.0 or newer:
 
 ```sh
 socklens audit --port 8080 --firewall=false

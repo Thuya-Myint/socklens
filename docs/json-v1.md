@@ -1,5 +1,7 @@
 # Socket JSON v1
 
+Available from v0.12.0. Existing `--json` remains supported.
+
 `list` and `inspect` accept an opt-in, versioned JSON response:
 
 ```sh
