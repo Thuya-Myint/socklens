@@ -7,6 +7,8 @@
 - Document snapshot comparisons, intersecting filters, destination constraints and completion installation.
 - Add real-shell, concurrent-save, malformed-input and combined-filter regressions; fix atomic publication of the detached-worker test marker.
 
+- Restore separate Microsoft Store builds/MSIX packaging with Store-owned updates; block standalone updater commands and workers in Store builds.
+
 ## v0.12.0 — 2026-11-22
 
 - Add opt-in JSON v1 envelopes for list/inspect with structured endpoints and consistent empty arrays; preserve legacy JSON and suppress automatic update notices/colors for JSON v1.

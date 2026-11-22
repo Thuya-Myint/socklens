@@ -28,6 +28,10 @@ func main() { os.Exit(run()) }
 
 func run() int {
 	ctx := context.Background()
+	if update.StoreManaged() && len(os.Args) > 1 && (os.Args[1] == "__install-update" || os.Args[1] == "__update-refresh") {
+		_, _ = fmt.Fprintln(os.Stderr, "Microsoft Store manages updates for this installation.")
+		return 1
+	}
 	if len(os.Args) > 1 && os.Args[1] == "__install-update" {
 		if len(os.Args) != 3 {
 			return 1
@@ -82,7 +86,7 @@ func isTerminal(file *os.File) bool {
 	return terminal.IsTerminal(file)
 }
 func shouldAutoNotify(args []string, terminal bool) bool {
-	if !terminal || len(args) == 0 || cli.JSONV1Requested(args) {
+	if update.StoreManaged() || !terminal || len(args) == 0 || cli.JSONV1Requested(args) {
 		return false
 	}
 	switch args[0] {

@@ -16,6 +16,7 @@ Safer snapshot saves and contextual shell completion on Windows, macOS and Linux
 - Regression checks cover concurrent saves, destination preservation, malformed
   and oversized files, combined filters, and all four shell adapters.
 - Fixed a background-worker test race without changing runtime worker behavior.
+- Restore separate Store-managed builds and MSIX packaging. Store builds delegate all update commands to Microsoft Store and never start GitHub update workers.
 
 ## Examples
 
@@ -29,7 +30,7 @@ socklens completion bash
 
 Put flags before filenames and use a new destination for every save. Snapshot
 files, legacy --json output and list/inspect --format json-v1 are distinct formats.
-See [snapshot and completion setup](docs/snapshots-and-completion.md).
+See [snapshot and completion setup](https://github.com/Thuya-Myint/socklens/blob/v0.12.1/docs/snapshots-and-completion.md).
 
 ## Upgrade and distribution
 
