@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.12.0 — 2026-11-22
+
+- Add opt-in JSON v1 envelopes for list/inspect with structured endpoints and consistent empty arrays; preserve legacy JSON and suppress automatic update notices/colors for JSON v1.
+- Bound event-triggered watch bursts, distinguish collection reasons/errors, count delivered/coalesced notifications, and keep backend loss explicitly unavailable.
+- Allow bounded 30-second helper attachment with timeout diagnostics; distinguish backend deadline failures and close failed partial sources before auto fallback.
+- Add actionable audit Exposure/Unknown summaries and one safe passive follow-up command without changing JSON, detailed evidence, priorities or exit codes.
+- Add versioned snapshot save/diff, process/state/port-range/local-address filters and basic Bash/Zsh/Fish/PowerShell completion generation.
+- Extend regression coverage and usage references for JSON compatibility, monitoring reliability, audit semantics, terminal safety and snapshot workflows.
+
 ## v0.11.0 — 2026-11-13
 
 - Reconcile event-mode snapshots after missed notifications; add configurable reconciliation, selected-backend watch statistics, and platform doctor reports.

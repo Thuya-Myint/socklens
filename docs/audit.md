@@ -70,7 +70,7 @@ The JSON data, finding levels, reading order and exit codes are unchanged by thi
 presentation flag. Width wrapping, automatic color and safe escaping apply to
 both text views. Unknown source failures remain visible in the concise overview.
 
-## Actionable default text (development)
+## Actionable default text (v0.12.0)
 
 The default view also labels `Exposure` and `Unknown`, then offers one focused
 `Check` command. Missing owner metadata is investigated first; otherwise partial

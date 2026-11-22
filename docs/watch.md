@@ -1,5 +1,9 @@
 # Watch reliability and diagnostics
 
+This reference describes v0.12.0 and newer. v0.11.0 introduced reconciliation
+and basic statistics; burst controls, expanded counters and the 30-second helper
+startup window were added in v0.12.0.
+
 `watch` observes socket-table snapshots triggered by OS events. It also refreshes
 after an idle reconciliation timeout so persistent changes can be recovered when
 notifications are missed. This is a best-effort view, not a complete socket history.
