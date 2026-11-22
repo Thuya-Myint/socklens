@@ -805,3 +805,5 @@ Stopping watch with Ctrl+C exits successfully.
 
 The audit implementation and later security-analysis direction are described in
 [ROADMAP.md](https://github.com/Thuya-Myint/socklens/blob/main/ROADMAP.md). Explicit TCP reachability checks are available in probe, and TLS certificate checks in tls. Broader protocol/vulnerability analysis remains planned work.
+
+See [snapshot workflows and shell completion](docs/snapshots-and-completion.md) for before/after comparisons, combined filters and shell setup.
