@@ -1,0 +1,37 @@
+name: Capture Store screenshot
+on:
+  push:
+    branches: [codex/store-screenshot]
+permissions:
+  contents: read
+jobs:
+  capture:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: bcd6bf310c32254be83441848eba1c9f4cfdac2b
+          path: product
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version: stable
+          cache: false
+      - name: Build exact released Store source
+        working-directory: product
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path C:\SockLens -Force | Out-Null
+          go build -trimpath -ldflags '-s -w -X main.version=v0.12.1 -X main.commit=bcd6bf310c32254be83441848eba1c9f4cfdac2b -X github.com/Thuya-Myint/socklens/internal/update.distribution=microsoft-store' -o C:\SockLens\socklens.exe ./cmd/socklens
+          if ($LASTEXITCODE -ne 0) { throw 'Build failed' }
+          if ((& C:\SockLens\socklens.exe version) -ne 'socklens v0.12.1') { throw 'Wrong version' }
+      - name: Capture the running Windows console
+        shell: pwsh
+        run: ./.github/scripts/capture_store_console.ps1 -OutputDirectory C:\SockLensCapture
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
+        with:
+          name: socklens-v0.12.1-windows-screenshot
+          path: C:\SockLensCapture
+          if-no-files-found: error
