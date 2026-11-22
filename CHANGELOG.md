@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.12.1 — 2026-11-22
+
+- Publish snapshot files atomically without replacing existing destinations, concurrent writers or dangling symlinks; require hard-link support and include the newline in the size limit.
+- Add contextual Bash/Zsh/Fish/PowerShell 7 completions for commands, snapshot subcommands, command-specific flags, selected values and filenames.
+- Document snapshot comparisons, intersecting filters, destination constraints and completion installation.
+- Add real-shell, concurrent-save, malformed-input and combined-filter regressions; fix atomic publication of the detached-worker test marker.
+
 ## v0.12.0 — 2026-11-22
 
 - Add opt-in JSON v1 envelopes for list/inspect with structured endpoints and consistent empty arrays; preserve legacy JSON and suppress automatic update notices/colors for JSON v1.
@@ -163,3 +170,4 @@ First release for Linux and WSL2.
 
 Windows/macOS socket operations are not implemented. Linux ARM64 is
 cross-compiled; runtime validation is on Linux amd64/WSL2.
+
