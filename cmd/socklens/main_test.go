@@ -47,8 +47,14 @@ func TestMain(m *testing.M) {
 		if len(os.Args) != 3 || os.Args[1] != "__update-refresh" {
 			os.Exit(2)
 		}
-		if err := os.WriteFile(os.Getenv("SOCKLENS_WORKER_TEST_MARKER"), []byte(os.Args[2]), 0600); err != nil {
+		marker := os.Getenv("SOCKLENS_WORKER_TEST_MARKER")
+		// Publish only after writing is complete. The parent polls for this
+		// marker and may otherwise read the empty file between create/write.
+		if err := os.WriteFile(marker+".writing", []byte(os.Args[2]), 0600); err != nil {
 			os.Exit(3)
+		}
+		if err := os.Rename(marker+".writing", marker); err != nil {
+			os.Exit(4)
 		}
 		os.Exit(0)
 	}
