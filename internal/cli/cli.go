@@ -171,12 +171,14 @@ func fail(w io.Writer, err error) int {
 }
 
 type socketOptions struct {
-	changes   bool          // watch only
-	reconcile time.Duration // watch event-mode reconciliation interval
-	stats     bool          // print monitoring diagnostics to stderr
-	filter    socketFilter
-	json      bool
-	format    string
+	changes       bool              // watch only
+	reconcile     time.Duration     // watch event-mode reconciliation interval
+	eventInterval time.Duration     // minimum gap after an event-mode collection
+	diagnostics   *watchDiagnostics // watch only; optional cumulative diagnostics
+	stats         bool              // print monitoring diagnostics to stderr
+	filter        socketFilter
+	json          bool
+	format        string
 }
 
 func addSocketFlags(fs *flag.FlagSet) *socketOptions {

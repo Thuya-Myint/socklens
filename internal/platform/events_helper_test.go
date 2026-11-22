@@ -70,3 +70,46 @@ func TestEventDiagnosticsBounded(t *testing.T) {
 		t.Fatalf("n=%d err=%v size=%d", n, err, len(d.text))
 	}
 }
+
+func TestHelperNotificationStats(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	path := eventHelper(t, "i=0; while [ $i -lt 100 ]; do printf 'CHANGE\\n'; i=$((i+1)); done\nprintf 'READY\\n'\nexec sleep 30\n")
+	source, err := startEventHelper(ctx, "test", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	diagnostics, ok := source.(SocketEventDiagnostics)
+	if !ok {
+		t.Fatal("helper diagnostics unavailable")
+	}
+	got := diagnostics.EventStats()
+	if got.Notifications != 100 || got.Coalesced != 99 {
+		t.Fatalf("stats=%+v", got)
+	}
+	if err := source.Wait(ctx); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSocketEventsAttachmentTimeoutIncludesDiagnostics(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	path := eventHelper(t, "printf 'probe startup stalled' >&2\nexec sleep 30\n")
+	_, err := startEventHelperWithTimeout(ctx, 500*time.Millisecond, "test", path)
+	if err == nil || !strings.Contains(err.Error(), "did not attach within 500ms") || !strings.Contains(err.Error(), "probe startup stalled") {
+		t.Fatalf("attachment timeout: %v", err)
+	}
+}
+
+func TestSocketEventsSlowAttachment(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	path := eventHelper(t, "sleep 0.05\nprintf 'READY\\n'\nexec sleep 30\n")
+	source, err := startEventHelperWithTimeout(ctx, time.Second, "test", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	source.Close()
+}

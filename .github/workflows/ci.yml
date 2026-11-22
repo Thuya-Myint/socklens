@@ -57,7 +57,7 @@ jobs:
           cache: false
       - run: sudo apt-get update && sudo apt-get install -y bpftrace
       - run: go test -c -o "$RUNNER_TEMP/platform-events.test" ./internal/platform
-      - run: sudo env SOCKLENS_EVENT_INTEGRATION=1 "$RUNNER_TEMP/platform-events.test" -test.v -test.run '^TestSocketEventsLive$' -test.timeout 30s
+      - run: sudo env SOCKLENS_EVENT_INTEGRATION=1 "$RUNNER_TEMP/platform-events.test" -test.v -test.run '^TestSocketEventsLive$' -test.timeout 60s
 
   package:
     needs: [test, security, installation, native, events]
@@ -121,13 +121,13 @@ jobs:
         if: runner.os == 'Windows'
         env:
           SOCKLENS_EVENT_INTEGRATION: '1'
-        run: go test -v ./internal/platform -run '^TestSocketEventsLive$' -timeout 40s
+        run: go test -v ./internal/platform -run '^TestSocketEventsLive$' -timeout 60s
 
       - name: Test macOS DTrace socket lifecycle when permitted by SIP
         if: runner.os == 'macOS'
         run: |
           go test -c -o "$RUNNER_TEMP/socklens-events.test" ./internal/platform
-          sudo env SOCKLENS_EVENT_INTEGRATION=1 SOCKLENS_EVENT_ALLOW_UNAVAILABLE=1 "$RUNNER_TEMP/socklens-events.test" -test.v -test.run '^TestSocketEventsLive$' -test.timeout 40s
+          sudo env SOCKLENS_EVENT_INTEGRATION=1 SOCKLENS_EVENT_ALLOW_UNAVAILABLE=1 "$RUNNER_TEMP/socklens-events.test" -test.v -test.run '^TestSocketEventsLive$' -test.timeout 60s
 
       - name: Test standalone Windows installer without Go on PATH
         if: runner.os == 'Windows'

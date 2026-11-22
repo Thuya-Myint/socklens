@@ -643,6 +643,9 @@ leaving a stale display. A single snapshot (`--count 1`) does not start tracing.
 | --- | --- | --- |
 | --backend events/auto/poll | events | Require OS events; auto explicitly permits polling fallback |
 | --interval DURATION | 2s | Polling delay; minimum 100ms; unused with events |
+| --event-interval DURATION | 100ms | Minimum gap after an event-mode snapshot; minimum 100ms and no greater than --reconcile |
+| --reconcile DURATION | 20s | Idle event wait before reconciliation; minimum 1s; collection/output time adds to this wait |
+| --stats | Off | Print backend, collection reasons, errors, and notification/coalescing statistics to stderr on exit |
 | --count N | 0 | Stop after N snapshots (including quiet ones); 0 keeps watching |
 | --changes | On | Emit a baseline, then only additions, removals, and updates; --changes=false prints full snapshots |
 
@@ -651,8 +654,8 @@ All shared discovery options are supported.
 By default, the first output is the baseline. Later output uses ADDED, REMOVED,
 and UPDATED BEFORE/AFTER; unchanged snapshots stay quiet. With --changes=false,
 each refresh prints a timestamp and socket table. --count counts snapshots,
-including quiet ones. An idle event watch can wait indefinitely before reaching
-the count.
+including quiet ones. Idle event watches reconcile periodically, so these quiet
+collections also count toward the limit.
 
 With --json, each emitted record is one JSON line containing timestamp, baseline,
 added, removed, and updated. Updates include before/after socket details. With
@@ -667,8 +670,11 @@ Close notifications can also concern non-socket descriptors and cause unchanged
 snapshots. This is event-triggered snapshot monitoring, not a lossless history:
 short-lived sockets, dropped tracing notifications, ownership changes, and UDP
 implicit binds or disconnects outside these hooks may be missed. Visibility is
-still limited to accessible sockets (and the current network namespace on Linux). Use
-polling when periodic reconciliation is needed.
+still limited to accessible sockets (and the current network namespace on Linux).
+Event mode includes idle reconciliation. Burst collection is rate-limited without
+extending the delay on every notification. Notification coalescing is counted;
+backend drops remain unavailable rather than reported as zero. See the
+[watch reliability reference](docs/watch.md) for diagnostic fields and limits.
 
 ### wait
 
