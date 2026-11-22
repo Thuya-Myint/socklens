@@ -23,23 +23,41 @@ using System;
 using System.Runtime.InteropServices;
 public static class ConsoleCapture {
  [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left,Top,Right,Bottom; }
+ [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+ [DllImport("user32.dll",CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr hwnd,System.Text.StringBuilder title,int count);
+ [DllImport("user32.dll")] public static extern int GetSystemMetrics(int index);
+ [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hwnd,IntPtr after,int x,int y,int width,int height,uint flags);
  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd,out Rect r);
  [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hwnd,IntPtr dc,uint flags);
 }
 "@
+ # Windows Terminal owns the visible window; GetConsoleWindow can return a
+ # hidden pseudoconsole handle whose pixels are black.
+ $visibleWindow = [ConsoleCapture]::GetForegroundWindow()
+ $title = New-Object Text.StringBuilder 512
+ $null = [ConsoleCapture]::GetWindowText($visibleWindow,$title,$title.Capacity)
+ if ($title.ToString() -notlike '*SockLens*') { throw "Unexpected foreground window: $title" }
+ $screenWidth=[ConsoleCapture]::GetSystemMetrics(0)
+ $screenHeight=[ConsoleCapture]::GetSystemMetrics(1)
+ $null=[ConsoleCapture]::SetWindowPos($visibleWindow,[IntPtr]::Zero,0,0,$screenWidth,$screenHeight,4)
+ Start-Sleep -Seconds 2
  $rectangle = New-Object ConsoleCapture+Rect
- if (-not [ConsoleCapture]::GetWindowRect([IntPtr]$info.hwnd,[ref]$rectangle)) { throw 'Cannot locate console window' }
+ if (-not [ConsoleCapture]::GetWindowRect($visibleWindow,[ref]$rectangle)) { throw 'Cannot locate visible terminal window' }
  $width=$rectangle.Right-$rectangle.Left; $height=$rectangle.Bottom-$rectangle.Top
  if ($width -le 0 -or $height -le 0) { throw 'Invalid console bounds' }
  $bitmap = New-Object System.Drawing.Bitmap($width,$height)
  $graphics = [Drawing.Graphics]::FromImage($bitmap)
  try {
   $dc=$graphics.GetHdc()
-  try { $printed=[ConsoleCapture]::PrintWindow([IntPtr]$info.hwnd,$dc,2) } finally {$graphics.ReleaseHdc($dc)}
+  try { $printed=[ConsoleCapture]::PrintWindow($visibleWindow,$dc,2) } finally {$graphics.ReleaseHdc($dc)}
   $bitmap.Save((Join-Path $OutputDirectory 'console-window.png'),[Drawing.Imaging.ImageFormat]::Png)
   try {
-   $graphics.CopyFromScreen($rectangle.Left,$rectangle.Top,0,0,$bitmap.Size)
-   $bitmap.Save((Join-Path $OutputDirectory 'console-screen.png'),[Drawing.Imaging.ImageFormat]::Png)
+   $screen = New-Object Drawing.Bitmap($screenWidth,$screenHeight)
+   $screenGraphics=[Drawing.Graphics]::FromImage($screen)
+   try {
+    $screenGraphics.CopyFromScreen(0,0,0,0,$screen.Size)
+    $screen.Save((Join-Path $OutputDirectory 'console-screen.png'),[Drawing.Imaging.ImageFormat]::Png)
+   } finally {$screenGraphics.Dispose();$screen.Dispose()}
   } catch { $_ | Out-String | Set-Content (Join-Path $OutputDirectory 'screen-capture-error.txt') }
  } finally { $graphics.Dispose(); $bitmap.Dispose() }
  & C:\SockLens\socklens.exe version | Set-Content (Join-Path $OutputDirectory 'application-version.txt')
