@@ -70,7 +70,18 @@ The JSON data, finding levels, reading order and exit codes are unchanged by thi
 presentation flag. Width wrapping, automatic color and safe escaping apply to
 both text views. Unknown source failures remain visible in the concise overview.
 
+## Actionable default text (development)
+
+The default view also labels `Exposure` and `Unknown`, then offers one focused
+`Check` command. Missing owner metadata is investigated first; otherwise partial
+firewall evidence points to a detailed audit. The suggestions are passive local
+reads and never execute automatically. They use only port/protocol and do not
+repeat the original PID/address/peer filters. Audit JSON, findings, priority,
+exit codes and detailed evidence are unchanged. See the
+[four before/after examples and workflow](audit-action-examples.md).
+
 ## Firewall context (v0.7.0)
+
 
 Firewall queries are enabled by default. Use --firewall=false to skip them.
 --peer IP filters candidate rules by a numeric unicast address; it requires
