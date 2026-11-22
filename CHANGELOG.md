@@ -170,4 +170,3 @@ First release for Linux and WSL2.
 
 Windows/macOS socket operations are not implemented. Linux ARM64 is
 cross-compiled; runtime validation is on Linux amd64/WSL2.
-

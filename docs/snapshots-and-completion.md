@@ -82,4 +82,3 @@ Snapshot filenames and `tls --ca-file` use the shell's file completion.
 Suggestions do not collect sockets, connect to endpoints, install updates or
 terminate processes. Numeric IDs/ports and free-text process names are entered
 by the user.
-
