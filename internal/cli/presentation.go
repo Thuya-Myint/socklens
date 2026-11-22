@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/Thuya-Myint/socklens/internal/terminal"
+	"github.com/Thuya-Myint/socklens/internal/update"
 )
 
 // ParseColorArgs accepts presentation flags before the command or among its
@@ -190,7 +191,12 @@ func parseCommandFlags(fs *flag.FlagSet, args []string, errOut io.Writer) error 
 }
 
 func writeHelp(out io.Writer) error {
-	for _, line := range strings.SplitAfter(help, "\n") {
+	helpText := help
+	if update.StoreManaged() {
+		helpText = strings.Replace(helpText, "  update         Check and install a newer stable release\n  update-check   Check GitHub for a newer stable release\n  updates        Enable, disable, or view daily update notices", "  Updates are managed by Microsoft Store.", 1)
+		helpText = strings.Replace(helpText, ", update-check", "", 1)
+	}
+	for _, line := range strings.SplitAfter(helpText, "\n") {
 		value := strings.TrimSuffix(line, "\n")
 		if strings.HasPrefix(value, "SockLens") || strings.HasSuffix(value, ":") {
 			value = terminal.Style(out, terminal.Heading, value)

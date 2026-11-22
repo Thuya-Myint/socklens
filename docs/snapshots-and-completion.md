@@ -1,7 +1,7 @@
 # Snapshots, filters and shell completion
 
-The completion improvements and snapshot save hardening on this branch are not
-in v0.12.0. The snapshot commands and filters themselves are available in v0.12.0.
+The completion improvements and snapshot save hardening require v0.12.1 or newer.
+The snapshot commands and filters themselves are available in v0.12.0.
 
 Save a baseline, start your service, then save another observation:
 

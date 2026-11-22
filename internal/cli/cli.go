@@ -104,6 +104,16 @@ func RunContext(ctx context.Context, args []string, in io.Reader, out, errOut io
 		}
 		return 0
 	}
+	if update.StoreManaged() && (args[0] == "update" || args[0] == "update-check" || args[0] == "updates") {
+		message := "Microsoft Store manages updates for this installation. Check for updates in Microsoft Store."
+		if len(args) == 2 && (args[1] == "--help" || args[1] == "-h") {
+			if _, err := fmt.Fprintln(out, message); err != nil {
+				return fail(errOut, err)
+			}
+			return 0
+		}
+		return fail(errOut, fmt.Errorf("%s", message))
+	}
 	switch args[0] {
 	case "help", "-h", "--help":
 		if len(args) != 1 {

@@ -8,7 +8,7 @@ BINDIR ?= $(PREFIX)/bin
 DIST ?= dist
 LDFLAGS = -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.buildDate=$(BUILD_DATE)
 
-.PHONY: help build test check install release
+.PHONY: help build test check install release store-build
 
 help:
 	@printf '%s\n' 'make build    Build bin/socklens with version metadata' 'make test     Run tests with the race detector' 'make check    Check formatting and run go vet' 'make install  Build and install into ~/.local/bin' 'make release  Package Linux/macOS/Windows amd64/arm64 archives and SHA256SUMS'
@@ -31,3 +31,8 @@ install: build
 
 release:
 	$(GO) run ./tools/release --go "$(GO)" --version "$(VERSION)" --commit "$(COMMIT)" --date "$(BUILD_DATE)" --out "$(DIST)"
+
+store-build:
+	@mkdir -p "$(DIST)/store-$(VERSION)"
+	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS) -X github.com/Thuya-Myint/socklens/internal/update.distribution=microsoft-store" -o "$(DIST)/store-$(VERSION)/socklens-x64.exe" ./cmd/socklens
+	GOOS=windows GOARCH=arm64 CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS) -X github.com/Thuya-Myint/socklens/internal/update.distribution=microsoft-store" -o "$(DIST)/store-$(VERSION)/socklens-arm64.exe" ./cmd/socklens
