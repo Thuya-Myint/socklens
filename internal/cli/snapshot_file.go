@@ -2,7 +2,6 @@ package cli
 
 import (
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -24,7 +23,7 @@ type savedSnapshot struct {
 
 func snapshotCommand(args []string, out, errOut io.Writer) int {
 	if len(args) == 0 {
-		return fail(errOut, fmt.Errorf("usage: socklens snapshot save FILE [filters] | snapshot diff BEFORE AFTER [--json]"))
+		return fail(errOut, fmt.Errorf("usage: socklens snapshot save [filters] FILE | snapshot diff [--json] BEFORE AFTER"))
 	}
 	switch args[0] {
 	case "save":
@@ -95,7 +94,7 @@ func saveSnapshotFile(path string, record savedSnapshot) error {
 	if err != nil {
 		return err
 	}
-	if len(data) > maxSnapshotBytes {
+	if len(data)+1 > maxSnapshotBytes {
 		return fmt.Errorf("snapshot exceeds 32 MiB limit")
 	}
 	dir := filepath.Dir(path)
@@ -117,13 +116,12 @@ func saveSnapshotFile(path string, record savedSnapshot) error {
 	if err := file.Close(); err != nil {
 		return err
 	}
-	if _, err := os.Stat(path); err == nil {
-		return fmt.Errorf("snapshot file already exists: %s", path)
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-	if err := os.Rename(file.Name(), path); err != nil {
-		return err
+	// Link publishes the complete file atomically and refuses any existing
+	// destination, including dangling symlinks and concurrent creators. Rename
+	// would replace an existing file on Unix. Fail safely on filesystems that
+	// do not support hard links rather than falling back to an unsafe rename.
+	if err := os.Link(file.Name(), path); err != nil {
+		return fmt.Errorf("publish snapshot without overwriting (requires hard-link support): %w", err)
 	}
 	return nil
 }

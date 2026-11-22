@@ -85,6 +85,9 @@ func Run(args []string, in io.Reader, out, errOut io.Writer, version string) int
 
 // RunContext allows long-running commands to stop when their caller cancels.
 func RunContext(ctx context.Context, args []string, in io.Reader, out, errOut io.Writer, version string) int {
+	if len(args) > 0 && args[0] == "__complete" {
+		return completeCommand(args[1:], out, errOut)
+	}
 	var mode string
 	var err error
 	args, mode, err = ParseColorArgs(args)
