@@ -134,6 +134,12 @@ func writeAuditReportCompact(out io.Writer, report audit.Report, columns, ruleLi
 		if err := field("Binding", auditBindingSummary(listener)); err != nil {
 			return err
 		}
+		if err := field("Exposure", auditExposureSummary(listener)); err != nil {
+			return err
+		}
+		if err := field("Unknown", auditUnknownSummary(listener)); err != nil {
+			return err
+		}
 		incoming, outgoing := auditCommunication(listener)
 		if err := field("Inbound", incoming); err != nil {
 			return err
@@ -151,7 +157,11 @@ func writeAuditReportCompact(out io.Writer, report audit.Report, columns, ruleLi
 				return err
 			}
 		}
+		firstAction, firstCommand := auditFirstCheck(listener)
 		actions := []string{}
+		if firstAction != "" {
+			actions = append(actions, firstAction)
+		}
 		for _, finding := range listener.Findings {
 			label := "Info"
 			if finding.Level == "review" {
@@ -173,6 +183,11 @@ func writeAuditReportCompact(out io.Writer, report audit.Report, columns, ruleLi
 		}
 		if len(actions) > 0 {
 			if err := field("Next", strings.Join(actions, " ")); err != nil {
+				return err
+			}
+		}
+		if firstCommand != "" {
+			if err := field("Check", firstCommand); err != nil {
 				return err
 			}
 		}
@@ -297,7 +312,7 @@ func writeAuditReportCompact(out io.Writer, report audit.Report, columns, ruleLi
 			return err
 		}
 	}
-	tips := "Use --details for full evidence, metadata, restrictions, raw policy and program paths; --json for structured data."
+	tips := "Check commands are optional passive follow-ups for the same port/protocol; they are not run automatically and do not repeat PID/address/peer filters. Use --details for full evidence, metadata, restrictions, raw policy and program paths; --json for structured data."
 	if hiddenRules {
 		tips += " Broad/unverified rules are in --details; --details --rule-limit 0 shows all candidates."
 	}

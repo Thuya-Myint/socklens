@@ -414,6 +414,10 @@ socklens audit --color never
 socklens audit --help
 ```
 
+The default audit view explains each listener's `Exposure`, states missing
+evidence under `Unknown`, and suggests one passive `Check` command. Suggestions
+are never executed automatically. See the [before/after audit examples](docs/audit-action-examples.md).
+
 Replace 12345 with an actual observed PID. All supplied filters combine.
 
 | Option | Default | Meaning |
