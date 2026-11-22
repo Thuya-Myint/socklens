@@ -41,6 +41,9 @@ func TestGeneratedCompletionAdapters(t *testing.T) {
 				t.Fatal(&errs)
 			}
 			completionPath := filepath.Join(dir, "completion."+shell)
+			if shell == "powershell" {
+				completionPath = filepath.Join(dir, "completion.ps1")
+			}
 			if err := os.WriteFile(completionPath, script.Bytes(), 0600); err != nil {
 				t.Fatal(err)
 			}
