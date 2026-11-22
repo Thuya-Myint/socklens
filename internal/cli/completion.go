@@ -60,6 +60,9 @@ func completionCandidates(words []string) []string {
 		return completionPrefix([]string{"bash", "zsh", "fish", "powershell"}, cur)
 	}
 	flags := completionFlagInfo(command)
+	if len(flags) == 0 {
+		return nil
+	}
 	for i := 0; i < len(prior); i++ {
 		arg := prior[i]
 		if arg == "--" || !strings.HasPrefix(arg, "-") {
@@ -197,7 +200,8 @@ compdef _socklens_complete socklens
 function __socklens_candidates
  set -l words (commandline -opc)
  set -e words[1]
- command socklens __complete $words "(commandline -ct)"
+ set -l current (commandline -ct)
+ command socklens __complete $words "$current"
 end
 function __socklens_files
  contains -- __socklens_files__ (__socklens_candidates)
